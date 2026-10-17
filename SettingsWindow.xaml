@@ -30,6 +30,7 @@
                 <ComboBox x:Name="CmbPrimarySource" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5">
                     <ComboBoxItem Content="Jamendo"/>
                     <ComboBoxItem Content="Audius"/>
+                    <ComboBoxItem Content="SoundCloud"/>
                     <ComboBoxItem Content="LocalFLAC"/>
                     <ComboBoxItem Content="JioSaavn"/>
                 </ComboBox>
@@ -39,6 +40,7 @@
                 <ComboBox x:Name="CmbSecondarySource" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5">
                     <ComboBoxItem Content="Audius"/>
                     <ComboBoxItem Content="Jamendo"/>
+                    <ComboBoxItem Content="SoundCloud"/>
                     <ComboBoxItem Content="LocalFLAC"/>
                     <ComboBoxItem Content="JioSaavn"/>
                 </ComboBox>

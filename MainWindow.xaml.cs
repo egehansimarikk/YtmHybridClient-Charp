@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using YtmHybridClient.Helpers;
 using YtmHybridClient.Providers;
@@ -19,6 +21,16 @@ namespace YtmHybridClient
         private LosslessResolver? _audioResolver;
         private bool _isExternalAudioActive = false;
         private int _trackChangeVersion;
+
+        // --- Hızlı kaynak değiştirme (Quick Source Toggle) ---
+        // Sadece o anki şarkı için geçerlidir; yeni şarkıda otomatik çözümleme yeniden başlar.
+        private static readonly string[] SourceCycle = { "Jamendo", "Audius", "SoundCloud", "YouTube Music" };
+        private Dictionary<string, ILosslessProvider> _toggleProviders = new();
+        private string _currentSource = "";
+        private string _currentTitle = "";
+        private string _currentArtist = "";
+        private string _currentAlbum = "";
+        private bool _isSwitchingSource;
 
         private AppSettings _appSettings = AppSettings.Load();
 
@@ -51,6 +63,14 @@ namespace YtmHybridClient
             AddProvider(activeProviders, _appSettings.SecondarySource, _appSettings);
 
             _audioResolver = new LosslessResolver(activeProviders);
+
+            // Elle kaynak değiştirme için: seçili birincil/ikincil sıradan bağımsız, sabit iki kaynak
+            _toggleProviders = new Dictionary<string, ILosslessProvider>
+            {
+                ["Jamendo"] = new JamendoProvider(_appSettings.JamendoClientId, _appSettings.StrictMatching),
+                ["Audius"] = new AudiusProvider(_appSettings.StrictMatching),
+                ["SoundCloud"] = new SoundCloudProvider(_appSettings.StrictMatching)
+            };
         }
 
         private void AddProvider(List<ILosslessProvider> list, string sourceName, AppSettings settings)
@@ -59,6 +79,8 @@ namespace YtmHybridClient
                 list.Add(new JioSaavnProvider());
             else if (sourceName == "Audius")
                 list.Add(new AudiusProvider(settings.StrictMatching));
+            else if (sourceName == "SoundCloud")
+                list.Add(new SoundCloudProvider(settings.StrictMatching));
             else if (sourceName == "Jamendo")
                 list.Add(new JamendoProvider(settings.JamendoClientId, settings.StrictMatching));
             else if (sourceName == "LocalFLAC")
@@ -281,6 +303,10 @@ namespace YtmHybridClient
                         string title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
                         string artist = root.TryGetProperty("artist", out var aProp) ? aProp.GetString() ?? "" : "";
                         string album = root.TryGetProperty("album", out var alProp) ? alProp.GetString() ?? "" : "";
+                        _currentTitle = title;
+                        _currentArtist = artist;
+                        _currentAlbum = album;
+                        _currentSource = "";
                         int trackChangeVersion = Interlocked.Increment(ref _trackChangeVersion);
                         await HandleTrackChangedAsync(title, artist, album, trackChangeVersion);
                         break;
@@ -396,7 +422,8 @@ namespace YtmHybridClient
 
                     _isExternalAudioActive = true;
                     await SafeExecuteScriptAsync("window.setYtmMute(true);");
-                    await UpdateStatusBadgeAsync(GetProviderBadgeText(result.ProviderName), "#00C853");
+                    _currentSource = result.ProviderName;
+                    await UpdateStatusBadgeAsync(GetProviderBadgeText(result.ProviderName), GetBadgeColor(result.ProviderName));
                     externalPlaybackStarted = true;
                 }
                 finally
@@ -435,6 +462,7 @@ namespace YtmHybridClient
                     if (trackChangeVersion == Volatile.Read(ref _trackChangeVersion))
                     {
                         bool smartFallback = _appSettings.EnableSmartFallback;
+                        _currentSource = "YouTube Music";
 
                         try
                         {
@@ -462,12 +490,201 @@ namespace YtmHybridClient
         {
             return providerName switch
             {
-                "Jamendo" => "🎵 Jamendo (Lossless)",
+                "Jamendo" => "🎵 Jamendo (FLAC)",
                 "JioSaavn" => "🎵 JioSaavn (320kbps)",
                 "Audius" => "🎵 Audius (320kbps)",
+                "SoundCloud" => "🎵 SoundCloud",
                 "Local FLAC" or "LocalFLAC" => "🎵 Local FLAC",
+                "YouTube Music" => "▶ YouTube Music",
                 _ => $"🎵 {providerName}"
             };
+        }
+
+        private static string GetBadgeColor(string providerName)
+        {
+            return providerName switch
+            {
+                "Audius" => "#8E24AA",
+                "SoundCloud" => "#FF5500",
+                "YouTube Music" => "#FF0055",
+                _ => "#00C853"
+            };
+        }
+
+        // ================= Hızlı Kaynak Değiştirme =================
+
+        private async void BtnToggleSource_Click(object sender, RoutedEventArgs e) => await ToggleSourceAsync();
+
+        private async void BadgeSource_MouseUp(object sender, MouseButtonEventArgs e) => await ToggleSourceAsync();
+
+        /// <summary>Jamendo → Audius → SoundCloud → YouTube Music → Jamendo ... sırayla geçiş yapar (sadece mevcut şarkı için).</summary>
+        private async Task ToggleSourceAsync()
+        {
+            if (_isSwitchingSource || string.IsNullOrEmpty(_currentTitle))
+                return;
+
+            _isSwitchingSource = true;
+            BtnToggleSource.IsEnabled = false;
+
+            int index = Array.IndexOf(SourceCycle, _currentSource);   // bilinmiyorsa -1 -> Jamendo
+            string target = SourceCycle[(index + 1) % SourceCycle.Length];
+            _currentSource = target;
+
+            // Devam eden otomatik çözümlemeyi iptal eder (sürüm numarası değişir)
+            int version = Interlocked.Increment(ref _trackChangeVersion);
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"[Toggle] Hedef kaynak: {target}");
+
+                // 1) Çalan harici sesi hemen durdur
+                if (!await StopEngineAsync(version))
+                    return;
+
+                // 2) YouTube Music: kendi sesi açılır
+                if (target == "YouTube Music")
+                {
+                    await SetYtmMuteAsync(false);
+                    await UpdateStatusBadgeAsync(GetProviderBadgeText(target), GetBadgeColor(target));
+                    return;
+                }
+
+                // 3) Harici kaynak: YouTube Music'i hemen sustur, akış adresini bul
+                await UpdateStatusBadgeAsync($"🔍 {target} aranıyor...", "#666666");
+                await SetYtmMuteAsync(true);
+                TimeSpan position = await GetYtmPositionAsync();
+
+                string? url = null;
+                if (_toggleProviders.TryGetValue(target, out var provider))
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                        url = await provider.GetFlacStreamUrlAsync(_currentTitle, _currentArtist, _currentAlbum, cts.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Toggle] {target} arama hatası: {ex.Message}");
+                    }
+                }
+
+                if (version != Volatile.Read(ref _trackChangeVersion)) return;   // parça değişti
+
+                if (string.IsNullOrEmpty(url))
+                {
+                    await FailSwitchAsync(target, "bulunamadı");
+                    return;
+                }
+
+                await UpdateStatusBadgeAsync($"⏳ {target} açılıyor...", "#FFA000");
+
+                // 4) Yeni akışı YouTube Music'in konumundan başlat
+                if (!await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(8)))
+                {
+                    await FailSwitchAsync(target, "ses motoru meşgul");
+                    return;
+                }
+
+                bool started = false;
+                try
+                {
+                    if (version != Volatile.Read(ref _trackChangeVersion)) return;
+
+                    try
+                    {
+                        started = await _audioEngine
+                            .PlayStreamAsync(url, TimeSpan.FromSeconds(5), position)
+                            .WaitAsync(TimeSpan.FromSeconds(7));
+                    }
+                    catch (TimeoutException)
+                    {
+                        started = false;
+                    }
+
+                    if (version != Volatile.Read(ref _trackChangeVersion)) return;
+
+                    if (started)
+                        _isExternalAudioActive = true;
+                }
+                finally
+                {
+                    _audioEngineLock.Release();
+                }
+
+                if (started)
+                    await UpdateStatusBadgeAsync(GetProviderBadgeText(target), GetBadgeColor(target));
+                else
+                    await FailSwitchAsync(target, "açılamadı");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Toggle Hata]: {ex.Message}");
+            }
+            finally
+            {
+                _isSwitchingSource = false;
+                BtnToggleSource.IsEnabled = true;
+            }
+        }
+
+        private async Task<bool> StopEngineAsync(int version)
+        {
+            if (!await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(8)))
+            {
+                await UpdateStatusBadgeAsync("⚠ Ses motoru meşgul", "#B71C1C");
+                return false;
+            }
+
+            try
+            {
+                if (version != Volatile.Read(ref _trackChangeVersion))
+                    return false;
+
+                _isExternalAudioActive = false;
+                _audioEngine.Stop();
+                return true;
+            }
+            finally
+            {
+                _audioEngineLock.Release();
+            }
+        }
+
+        // Seçilen kaynak çalmadıysa sessiz kalma: YouTube Music'in sesini geri aç
+        private async Task FailSwitchAsync(string target, string reason)
+        {
+            _isExternalAudioActive = false;
+            await SetYtmMuteAsync(false);
+            await UpdateStatusBadgeAsync($"⚠ {target}: {reason}", "#FF8F00");
+        }
+
+        private async Task SetYtmMuteAsync(bool mute)
+        {
+            try
+            {
+                await SafeExecuteScriptAsync(mute ? "window.setYtmMute(true);" : "window.setYtmMute(false);");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[YTM ses ayarı Hata]: {ex.Message}");
+            }
+        }
+
+        // YouTube Music'in o anki konumu (yeni kaynağı aynı yerden başlatmak için)
+        private async Task<TimeSpan> GetYtmPositionAsync()
+        {
+            try
+            {
+                string result = await SafeExecuteScriptAsync("(document.querySelector('video') || {}).currentTime || 0");
+                if (double.TryParse(result, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds)
+                    && seconds > 0 && !double.IsInfinity(seconds))
+                    return TimeSpan.FromSeconds(seconds);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[YTM konum Hata]: {ex.Message}");
+            }
+            return TimeSpan.Zero;
         }
 
         private async Task UpdateStatusBadgeAsync(string text, string hexColor)
@@ -487,17 +704,17 @@ namespace YtmHybridClient
             }
         }
 
-        private async Task SafeExecuteScriptAsync(string script)
+        private async Task<string> SafeExecuteScriptAsync(string script)
         {
-            var operation = Dispatcher.InvokeAsync<Task>(() =>
+            var operation = Dispatcher.InvokeAsync<Task<string>>(() =>
             {
                 if (YtmWebView?.CoreWebView2 == null)
-                    return Task.CompletedTask;
+                    return Task.FromResult("null");
 
                 return YtmWebView.CoreWebView2.ExecuteScriptAsync(script);
             });
 
-            await operation.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(3));
+            return await operation.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(3));
         }
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)

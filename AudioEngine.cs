@@ -84,11 +84,12 @@ namespace YtmHybridClient
 
         public bool IsPlaying => _wasapiOut?.PlaybackState == PlaybackState.Playing;
 
-        public async Task<bool> PlayStreamAsync(string streamUrlOrPath, TimeSpan timeout)
+        /// <param name="startAt">Akışın başlayacağı konum (kaynak değiştirirken YouTube Music ile senkron kalmak için).</param>
+        public async Task<bool> PlayStreamAsync(string streamUrlOrPath, TimeSpan timeout, TimeSpan startAt = default)
         {
             Stop();
 
-            var playbackTask = Task.Run(() => CreateAndStartPlayback(streamUrlOrPath));
+            var playbackTask = Task.Run(() => CreateAndStartPlayback(streamUrlOrPath, startAt));
             (WasapiOut Output, WaveStream Reader) playback;
             try
             {
@@ -127,23 +128,23 @@ namespace YtmHybridClient
             }
         }
 
-        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath)
+        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt)
         {
             if (!UseExclusive)
-                return CreateAndStartPlayback(streamUrlOrPath, AudioClientShareMode.Shared);
+                return CreateAndStartPlayback(streamUrlOrPath, startAt, AudioClientShareMode.Shared);
 
             try
             {
-                return CreateAndStartPlayback(streamUrlOrPath, AudioClientShareMode.Exclusive);
+                return CreateAndStartPlayback(streamUrlOrPath, startAt, AudioClientShareMode.Exclusive);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[AudioEngine] Exclusive mod başarısız: {ex.Message}");
-                return CreateAndStartPlayback(streamUrlOrPath, AudioClientShareMode.Shared);
+                return CreateAndStartPlayback(streamUrlOrPath, startAt, AudioClientShareMode.Shared);
             }
         }
 
-        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath, AudioClientShareMode mode)
+        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt, AudioClientShareMode mode)
         {
             WaveStream? reader = null;
             WasapiOut? output = null;
@@ -153,6 +154,13 @@ namespace YtmHybridClient
                 reader = new MediaFoundationReader(streamUrlOrPath);
                 output = CreateOutput(mode);
                 output.Init(reader);
+
+                if (startAt > TimeSpan.Zero)
+                {
+                    try { reader.CurrentTime = startAt; }
+                    catch (Exception ex) { Debug.WriteLine($"[AudioEngine] Başlangıç konumuna gidilemedi: {ex.Message}"); }
+                }
+
                 output.PlaybackStopped += OnPlaybackStopped;
                 output.Play();
                 return (output, reader);

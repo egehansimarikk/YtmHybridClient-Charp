@@ -29,13 +29,22 @@
                         CornerRadius="12" 
                         Padding="10,4" 
                         Margin="0,0,10,0" 
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Center"
+                        Cursor="Hand"
+                        ToolTip="Kaynağı değiştir (Jamendo → Audius → SoundCloud → YouTube Music)"
+                        MouseLeftButtonUp="BadgeSource_MouseUp">
                     <TextBlock x:Name="TxtAudioSource" 
                                Text="🔍 Aranıyor..." 
                                Foreground="White" 
                                FontSize="12" 
                                FontWeight="Bold"/>
                 </Border>
+
+                <!-- Kaynağı Değiştir Butonu -->
+                <Button x:Name="BtnToggleSource" Content="🔄" Padding="10,5" Margin="0,0,10,0"
+                        Background="#282828" Foreground="White" BorderThickness="0" Cursor="Hand"
+                        ToolTip="Kaynağı değiştir (Jamendo → Audius → SoundCloud → YouTube Music)"
+                        Click="BtnToggleSource_Click"/>
 
                 <!-- Ayarlar Butonu -->
                 <Button Content="⚙ Ayarlar" Padding="12,5" 
