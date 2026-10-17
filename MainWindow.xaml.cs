@@ -1,24 +1,68 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using YtmHybridClient.Helpers;
+using YtmHybridClient.Providers;
+using YtmHybridClient.Services;
 
 namespace YtmHybridClient
 {
     public partial class MainWindow : Window
     {
         private readonly AudioEngine _audioEngine = new AudioEngine();
-        private readonly LosslessResolver _resolver = new LosslessResolver();
+        private readonly SemaphoreSlim _audioEngineLock = new SemaphoreSlim(1, 1);
+        private LosslessResolver? _audioResolver;
         private bool _isExternalAudioActive = false;
+        private int _trackChangeVersion;
 
-        // Uygulama Ayarları Nesnesi
         private AppSettings _appSettings = AppSettings.Load();
 
         public MainWindow()
         {
             InitializeComponent();
+
+            try
+            {
+                _appSettings = AppSettings.Load();
+                LanguageManager.ChangeLanguage(_appSettings.Language);
+                InitAudioResolver();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Init Hata]: {ex.Message}");
+            }
+
             InitializeWebViewAsync();
+        }
+
+        public void InitAudioResolver()
+        {
+            _appSettings = AppSettings.Load();
+            _audioEngine.UseExclusive = _appSettings.UseWasapiExclusive;
+            _audioEngine.DeviceId = _appSettings.AudioDeviceId ?? "";
+            var activeProviders = new List<ILosslessProvider>();
+
+            AddProvider(activeProviders, _appSettings.PrimarySource, _appSettings);
+            AddProvider(activeProviders, _appSettings.SecondarySource, _appSettings);
+
+            _audioResolver = new LosslessResolver(activeProviders);
+        }
+
+        private void AddProvider(List<ILosslessProvider> list, string sourceName, AppSettings settings)
+        {
+            if (sourceName == "JioSaavn")
+                list.Add(new JioSaavnProvider());
+            else if (sourceName == "Audius")
+                list.Add(new AudiusProvider(settings.StrictMatching));
+            else if (sourceName == "Jamendo")
+                list.Add(new JamendoProvider(settings.JamendoClientId, settings.StrictMatching));
+            else if (sourceName == "LocalFLAC")
+                list.Add(new LocalFlacProvider(settings.LocalFlacFolder));
         }
 
         private async void InitializeWebViewAsync()
@@ -33,14 +77,10 @@ namespace YtmHybridClient
 
                 await YtmWebView.EnsureCoreWebView2Async(env);
 
-                // User-Agent ve DevTools Ayarları
                 YtmWebView.CoreWebView2.Settings.UserAgent =
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
                 YtmWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
 
-                // =========================================================================
-                // 1. AĞ SEVİYESİNDE REKLAM ENGELLEME (Network Filter)
-                // =========================================================================
                 YtmWebView.CoreWebView2.AddWebResourceRequestedFilter("*googleads*", CoreWebView2WebResourceContext.All);
                 YtmWebView.CoreWebView2.AddWebResourceRequestedFilter("*doubleclick.net*", CoreWebView2WebResourceContext.All);
                 YtmWebView.CoreWebView2.AddWebResourceRequestedFilter("*youtube.com/pagead/*", CoreWebView2WebResourceContext.All);
@@ -48,19 +88,33 @@ namespace YtmHybridClient
 
                 YtmWebView.CoreWebView2.WebResourceRequested += (sender, args) =>
                 {
-                    args.Response = YtmWebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 403, "Blocked", "");
+                    args.Response = YtmWebView.CoreWebView2.Environment.CreateWebResourceResponse(
+                        new MemoryStream(), 403, "Blocked", "");
                 };
 
                 YtmWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
 
-                // =========================================================================
-                // 2. YOUTUBE API PAYLOAD INTERCEPTOR (Gelişmiş API Reklam Temizleyici)
-                // =========================================================================
                 string interceptorScript = @"
                     (function () {
                         window.isExternalAudioPlaying = false;
 
-                        // --- A. YOUTUBE API VERİLERİNDEN REKLAMLARI TEMİZLEME (FETCH HOOK) ---
+                        function reportJsError(where, e) {
+                            try {
+                                window.chrome.webview.postMessage({
+                                    type: 'JS_ERROR',
+                                    message: where + ': ' + (e && e.message ? e.message : String(e))
+                                });
+                            } catch (_) { }
+                        }
+
+                        function whenDomReady(fn) {
+                            if (document.readyState === 'loading') {
+                                document.addEventListener('DOMContentLoaded', fn, { once: true });
+                            } else {
+                                fn();
+                            }
+                        }
+
                         const originalFetch = window.fetch;
                         window.fetch = async function(...args) {
                             const response = await originalFetch.apply(this, args);
@@ -71,7 +125,6 @@ namespace YtmHybridClient
                                     const clone = response.clone();
                                     const data = await clone.json();
 
-                                    // JSON Verisi İçindeki Tüm Reklam Objelerini Temizle
                                     if (data.adPlacements) delete data.adPlacements;
                                     if (data.playerAds) delete data.playerAds;
                                     if (data.adSlots) delete data.adSlots;
@@ -88,7 +141,7 @@ namespace YtmHybridClient
                             return response;
                         };
 
-                        // ytInitialPlayerResponse Objesini Dinleyip Reklamları Silme
+                        try {
                         let _ytInitialPlayerResponse = window.ytInitialPlayerResponse;
                         Object.defineProperty(window, 'ytInitialPlayerResponse', {
                             get: function() { return _ytInitialPlayerResponse; },
@@ -102,27 +155,33 @@ namespace YtmHybridClient
                             },
                             configurable: true
                         });
+                        } catch (e) { reportJsError('defineProperty', e); }
 
-                        // --- B. CSS İLE BANNER VE POP-UP ENGELLEME ---
+                        try {
                         const style = document.createElement('style');
-                        style.innerHTML = `
+                        style.textContent = `
                             .ytp-ad-overlay-container, .ytp-ad-message-container,
                             .video-ads, ytm-promoted-sparkles-web-renderer,
                             ytmusic-mealbar-promo-renderer, .tp-yt-paper-dialog,
                             ytmusic-popup-container, .ytp-ad-player-overlay,
                             ytmusic-pivots, #player-ads { display: none !important; }
                         `;
-                        document.head.appendChild(style);
+                        whenDomReady(function () { (document.head || document.documentElement).appendChild(style); });
+                        } catch (e) { reportJsError('style', e); }
 
-                        // --- C. MUTE KİLİT MEKANİZMASI ---
                         function lockMediaElements() {
                             const mediaElements = document.querySelectorAll('video, audio');
                             mediaElements.forEach(media => {
                                 if (window.isExternalAudioPlaying) {
+                                    if (media.volume > 0) media.__savedVolume = media.volume;
                                     media.muted = true;
                                     media.volume = 0;
                                 } else {
                                     media.muted = false;
+                                    if (media.__savedVolume !== undefined) {
+                                        media.volume = media.__savedVolume;
+                                        delete media.__savedVolume;
+                                    }
                                 }
                             });
                         }
@@ -137,7 +196,6 @@ namespace YtmHybridClient
                             lockMediaElements();
                         };
 
-                        // --- D. PLAY / PAUSE & SEEK EVENT DİNLEYİCİLERİ ---
                         document.addEventListener('pause', function () {
                             if (window.chrome && window.chrome.webview) {
                                 window.chrome.webview.postMessage({ type: 'PLAYER_STATE', state: 'PAUSED' });
@@ -160,9 +218,9 @@ namespace YtmHybridClient
                             }
                         }, true);
 
-                        // --- E. ŞARKI DEĞİŞİMİ TAKİBİ ---
                         let lastTrackKey = '';
                         function checkTrackChange() {
+                            try {
                             if (navigator.mediaSession && navigator.mediaSession.metadata) {
                                 const meta = navigator.mediaSession.metadata;
                                 const currentKey = meta.title + '-' + meta.artist;
@@ -182,10 +240,18 @@ namespace YtmHybridClient
                                     }
                                 }
                             }
+                            } catch (e) { reportJsError('checkTrackChange', e); }
                         }
 
                         const observer = new MutationObserver(checkTrackChange);
-                        observer.observe(document.body, { childList: true, subtree: true });
+                        whenDomReady(function () {
+                            observer.observe(document.documentElement, { childList: true, subtree: true });
+                            checkTrackChange();
+                        });
+                        // DOM değişmese bile mediaSession değişimini yakalamak için yedek kontrol
+                        setInterval(checkTrackChange, 1000);
+
+                        try { window.chrome.webview.postMessage({ type: 'JS_READY' }); } catch (_) { }
                     })();
                 ";
 
@@ -212,45 +278,31 @@ namespace YtmHybridClient
                 switch (msgType)
                 {
                     case "TRACK_CHANGED":
-                        string title = root.GetProperty("title").GetString() ?? "";
-                        string artist = root.GetProperty("artist").GetString() ?? "";
+                        string title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
+                        string artist = root.TryGetProperty("artist", out var aProp) ? aProp.GetString() ?? "" : "";
+                        string album = root.TryGetProperty("album", out var alProp) ? alProp.GetString() ?? "" : "";
+                        int trackChangeVersion = Interlocked.Increment(ref _trackChangeVersion);
+                        await HandleTrackChangedAsync(title, artist, album, trackChangeVersion);
+                        break;
 
-                        Dispatcher.Invoke(() => {
-                            this.Title = $"YTM Lossless Client - {title} ({artist})";
-                        });
+                    case "JS_READY":
+                        System.Diagnostics.Debug.WriteLine("[JS] Script yüklendi.");
+                        if (!_isExternalAudioActive)
+                            await UpdateStatusBadgeAsync("✔ Script hazır", "#455A64");
+                        break;
 
-                        string? losslessUrl = await _resolver.ResolveLosslessStreamAsync(title, artist);
-
-                        if (!string.IsNullOrEmpty(losslessUrl))
-                        {
-                            _isExternalAudioActive = true;
-                            await YtmWebView.CoreWebView2.ExecuteScriptAsync("window.setYtmMute(true);");
-                            _audioEngine.PlayStream(losslessUrl);
-                        }
-                        else
-                        {
-                            _isExternalAudioActive = false;
-                            _audioEngine.Stop();
-
-                            if (_appSettings.EnableSmartFallback)
-                            {
-                                await YtmWebView.CoreWebView2.ExecuteScriptAsync("window.setYtmMute(false);");
-                            }
-                        }
+                    case "JS_ERROR":
+                        string jsErr = root.TryGetProperty("message", out var jeProp) ? jeProp.GetString() ?? "" : "";
+                        System.Diagnostics.Debug.WriteLine($"[JS HATA]: {jsErr}");
+                        await UpdateStatusBadgeAsync("⚠ JS hatası", "#B71C1C");
                         break;
 
                     case "PLAYER_STATE":
                         if (_isExternalAudioActive)
                         {
-                            string state = root.GetProperty("state").GetString() ?? "";
-                            if (state == "PAUSED")
-                            {
-                                _audioEngine.Pause();
-                            }
-                            else if (state == "PLAYING")
-                            {
-                                _audioEngine.Resume();
-                            }
+                            string state = root.TryGetProperty("state", out var sProp) ? sProp.GetString() ?? "" : "";
+                            if (state == "PAUSED") _audioEngine.Pause();
+                            else if (state == "PLAYING") _audioEngine.Resume();
                         }
                         break;
 
@@ -269,17 +321,194 @@ namespace YtmHybridClient
             }
         }
 
+        private async Task HandleTrackChangedAsync(string title, string artist, string album, int trackChangeVersion)
+        {
+            bool externalPlaybackStarted = false;
+            System.Diagnostics.Debug.WriteLine($"[1] Parça değişti: {artist} - {title}");
+
+            try
+            {
+                await UpdateStatusBadgeAsync("🔍 Aranıyor...", "#666666");
+
+                if (!await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(3)))
+                {
+                    System.Diagnostics.Debug.WriteLine("[!] Ses motoru kilidi 3 sn içinde alınamadı.");
+                    return;
+                }
+                try
+                {
+                    if (trackChangeVersion != Volatile.Read(ref _trackChangeVersion))
+                        return;
+
+                    _isExternalAudioActive = false;
+                    _audioEngine.Stop();
+                }
+                finally
+                {
+                    _audioEngineLock.Release();
+                }
+
+                var resolver = _audioResolver;
+                if (resolver == null)
+                    return;
+
+                // Toplam çözümleme bütçesi: 7 sn (her kaynağa ayrıca 3 sn verilir)
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                var result = await Task.Run(
+                        () => resolver.ResolveAudioAsync(title, artist, album, cts.Token),
+                        cts.Token)
+                    .WaitAsync(cts.Token);
+
+                System.Diagnostics.Debug.WriteLine($"[2] Çözüldü: {result.ProviderName} -> {result.StreamUrl ?? "(yok)"}");
+
+                if (trackChangeVersion != Volatile.Read(ref _trackChangeVersion) || string.IsNullOrWhiteSpace(result.StreamUrl))
+                    return;
+
+                await UpdateStatusBadgeAsync($"⏳ {result.ProviderName} açılıyor...", "#FFA000");
+
+                if (!await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(3)))
+                {
+                    System.Diagnostics.Debug.WriteLine("[!] Ses motoru kilidi (çalma) 3 sn içinde alınamadı.");
+                    return;
+                }
+                try
+                {
+                    if (trackChangeVersion != Volatile.Read(ref _trackChangeVersion))
+                        return;
+
+                    System.Diagnostics.Debug.WriteLine("[3] Çalma başlıyor");
+                    bool playbackStarted;
+                    try
+                    {
+                        playbackStarted = await _audioEngine
+                            .PlayStreamAsync(result.StreamUrl, TimeSpan.FromSeconds(5))
+                            .WaitAsync(TimeSpan.FromSeconds(7));
+                    }
+                    catch (TimeoutException)
+                    {
+                        System.Diagnostics.Debug.WriteLine("[!] PlayStreamAsync 7 sn içinde dönmedi.");
+                        playbackStarted = false;
+                    }
+                    System.Diagnostics.Debug.WriteLine($"[4] Çalma sonucu: {playbackStarted}");
+
+                    if (trackChangeVersion != Volatile.Read(ref _trackChangeVersion) || !playbackStarted)
+                        return;
+
+                    _isExternalAudioActive = true;
+                    await SafeExecuteScriptAsync("window.setYtmMute(true);");
+                    await UpdateStatusBadgeAsync(GetProviderBadgeText(result.ProviderName), "#00C853");
+                    externalPlaybackStarted = true;
+                }
+                finally
+                {
+                    _audioEngineLock.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Resolver Hata]: {ex.Message}");
+            }
+            finally
+            {
+                // Bu parça hâlâ güncelse ve harici ses başlamadıysa rozet MUTLAKA yeniden çizilir.
+                if (trackChangeVersion == Volatile.Read(ref _trackChangeVersion) && !externalPlaybackStarted)
+                {
+                    bool lockTaken = false;
+                    try
+                    {
+                        lockTaken = await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(2));
+                        if (lockTaken && trackChangeVersion == Volatile.Read(ref _trackChangeVersion))
+                        {
+                            _isExternalAudioActive = false;
+                            _audioEngine.Stop();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Audio fallback Hata]: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (lockTaken) _audioEngineLock.Release();
+                    }
+
+                    if (trackChangeVersion == Volatile.Read(ref _trackChangeVersion))
+                    {
+                        bool smartFallback = _appSettings.EnableSmartFallback;
+
+                        try
+                        {
+                            // Akıllı yedekleme açık: YouTube Music'in kendi sesi açılır.
+                            // Kapalı: YouTube Music sessiz kalır, lossless bulunamayan şarkı çalmaz.
+                            await SafeExecuteScriptAsync(smartFallback ? "window.setYtmMute(false);" : "window.setYtmMute(true);");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[YTM ses ayarı Hata]: {ex.Message}");
+                        }
+                        finally
+                        {
+                            if (smartFallback)
+                                await UpdateStatusBadgeAsync("▶ YouTube Music", "#FF0055");
+                            else
+                                await UpdateStatusBadgeAsync("🔇 Lossless bulunamadı", "#757575");
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string GetProviderBadgeText(string providerName)
+        {
+            return providerName switch
+            {
+                "Jamendo" => "🎵 Jamendo (Lossless)",
+                "JioSaavn" => "🎵 JioSaavn (320kbps)",
+                "Audius" => "🎵 Audius (320kbps)",
+                "Local FLAC" or "LocalFLAC" => "🎵 Local FLAC",
+                _ => $"🎵 {providerName}"
+            };
+        }
+
+        private async Task UpdateStatusBadgeAsync(string text, string hexColor)
+        {
+            try
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    BadgeSource.Background = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor));
+                    TxtAudioSource.Text = text;
+                }).Task;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Rozet güncelleme Hata]: {ex.Message}");
+            }
+        }
+
+        private async Task SafeExecuteScriptAsync(string script)
+        {
+            var operation = Dispatcher.InvokeAsync<Task>(() =>
+            {
+                if (YtmWebView?.CoreWebView2 == null)
+                    return Task.CompletedTask;
+
+                return YtmWebView.CoreWebView2.ExecuteScriptAsync(script);
+            });
+
+            await operation.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(3));
+        }
+
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow(_appSettings)
-            {
-                Owner = this
-            };
-
+            var settingsWindow = new SettingsWindow(AppSettings.Load()) { Owner = this };
             if (settingsWindow.ShowDialog() == true)
             {
-                _appSettings = settingsWindow.CurrentSettings;
-                System.Diagnostics.Debug.WriteLine("[Settings] Ayarlar güncellendi ve kaydedildi.");
+                _appSettings = AppSettings.Load();
+                LanguageManager.ChangeLanguage(_appSettings.Language);
+                InitAudioResolver();
+                System.Diagnostics.Debug.WriteLine("[Settings] Ayarlar kaydedildi, dil ve ses çözücü zinciri yenilendi.");
             }
         }
 

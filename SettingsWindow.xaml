@@ -1,7 +1,7 @@
-﻿<Window x:Class="YtmHybridClient.SettingsWindow"
+<Window x:Class="YtmHybridClient.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Uygulama Ayarları" Height="420" Width="550"
+        Title="Uygulama Ayarları" Height="600" Width="550"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#181818" Foreground="White">
     <Grid Margin="20">
@@ -12,31 +12,75 @@
         </Grid.RowDefinitions>
 
         <!-- Başlık -->
-        <TextBlock Grid.Row="0" Text="YTM Lossless Hybrid Client - Ayarlar" FontSize="18" FontWeight="Bold" Foreground="#FF0055" Margin="0,0,0,20"/>
+        <TextBlock Grid.Row="0" Text="YTM Lossless Hybrid Client - Ayarlar" FontSize="18" FontWeight="Bold" Foreground="#FF0055" Margin="0,0,0,15"/>
 
-        <!-- Form Alanları -->
-        <StackPanel Grid.Row="1" VerticalAlignment="Top">
+        <!-- Form Alanları (Kaydırılabilir İçerik) -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,15">
+            <StackPanel VerticalAlignment="Top" Margin="0,0,10,0">
 
-            <!-- Yerel FLAC Klasörü -->
-            <TextBlock Text="Yerel FLAC Müzik Klasörü:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <Grid Margin="0,0,0,15">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="TxtFlacFolder" Grid.Column="0" Background="#282828" Foreground="White" BorderThickness="1" BorderBrush="#404040" Padding="8" VerticalContentAlignment="Center"/>
-                <Button Grid.Column="1" Content="Gözat..." Margin="10,0,0,0" Padding="15,8" Background="#383838" Foreground="White" BorderThickness="0" Click="BtnBrowse_Click"/>
-            </Grid>
+                <!-- Uygulama Dili -->
+                <TextBlock Text="Uygulama Dili / Language:" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
+                <ComboBox x:Name="CmbLanguage" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5">
+                    <ComboBoxItem Content="Türkçe" Tag="tr"/>
+                    <ComboBoxItem Content="English" Tag="en"/>
+                </ComboBox>
 
-            <!-- Jamendo Client ID -->
-            <TextBlock Text="Jamendo API Client ID:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-            <TextBox x:Name="TxtJamendoClientId" Background="#282828" Foreground="White" BorderThickness="1" BorderBrush="#404040" Padding="8" Margin="0,0,0,15"/>
+                <!-- Birincil Ses Kaynağı -->
+                <TextBlock Text="Birincil Ses Kaynağı:" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
+                <ComboBox x:Name="CmbPrimarySource" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5">
+                    <ComboBoxItem Content="Jamendo"/>
+                    <ComboBoxItem Content="Audius"/>
+                    <ComboBoxItem Content="LocalFLAC"/>
+                    <ComboBoxItem Content="JioSaavn"/>
+                </ComboBox>
 
-            <!-- Seçenekler -->
-            <CheckBox x:Name="ChkWasapiExclusive" Content="WASAPI Exclusive Modu (Bit-Perfect Ses Kartı Kilidi)" Foreground="White" Margin="0,5,0,10" IsChecked="True"/>
-            <CheckBox x:Name="ChkSmartFallback" Content="Akıllı Yedekleme (Lossless bulunamazsa YTM sesini aç)" Foreground="White" Margin="0,0,0,15" IsChecked="True"/>
+                <!-- İkincil Ses Kaynağı -->
+                <TextBlock Text="İkincil Ses Kaynağı (Fallback):" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
+                <ComboBox x:Name="CmbSecondarySource" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5">
+                    <ComboBoxItem Content="Audius"/>
+                    <ComboBoxItem Content="Jamendo"/>
+                    <ComboBoxItem Content="LocalFLAC"/>
+                    <ComboBoxItem Content="JioSaavn"/>
+                </ComboBox>
 
-        </StackPanel>
+                <!-- Ses Çıkış Aygıtı -->
+                <TextBlock Text="Ses Çıkış Aygıtı:" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
+                <ComboBox x:Name="CmbAudioDevice" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5"
+                          DisplayMemberPath="Name" SelectedValuePath="Id"/>
+
+                <!-- Yerel FLAC Klasörü -->
+                <TextBlock Text="Yerel FLAC Müzik Klasörü:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="TxtFlacFolder" Grid.Column="0" Background="#282828" Foreground="White" BorderThickness="1" BorderBrush="#404040" Padding="8" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="1" Content="Gözat..." Margin="10,0,0,0" Padding="15,8" Background="#383838" Foreground="White" BorderThickness="0" Click="BtnBrowse_Click"/>
+                </Grid>
+
+                <!-- Jamendo Client ID -->
+                <TextBlock Text="Jamendo API Client ID:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <TextBox x:Name="TxtJamendoClientId" Background="#282828" Foreground="White" BorderThickness="1" BorderBrush="#404040" Padding="8" Margin="0,0,0,15"/>
+
+                <!-- Eşleştirme -->
+                <CheckBox x:Name="ChkStrictMatching" Foreground="White" Margin="0,5,0,10" IsChecked="True">
+                    <TextBlock TextWrapping="Wrap" Width="440"
+                               Text="Katı eşleştirme (yanlış şarkı çalmasın). Kapatırsan Jamendo/Audius daha sık çıkar ama alakasız şarkı çalabilir."/>
+                </CheckBox>
+
+                <!-- Seçenekler -->
+                <CheckBox x:Name="ChkWasapiExclusive" Foreground="White" Margin="0,5,0,10" IsChecked="True">
+                    <TextBlock TextWrapping="Wrap" Width="440"
+                               Text="WASAPI Exclusive Modu (bit-perfect, ses kartını kilitler). Başarısız olursa otomatik olarak Shared moda geçilir."/>
+                </CheckBox>
+                <CheckBox x:Name="ChkSmartFallback" Foreground="White" Margin="0,0,0,15" IsChecked="True">
+                    <TextBlock TextWrapping="Wrap" Width="440"
+                               Text="Akıllı Yedekleme (lossless bulunamazsa YouTube Music'in sesini aç). Kapatırsan bulunamayan şarkılar sessiz kalır."/>
+                </CheckBox>
+
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- Alt Butonlar -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

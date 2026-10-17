@@ -1,42 +1,60 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
+using YtmHybridClient.Providers;
 
-namespace YtmHybridClient
+namespace YtmHybridClient.Services
 {
     public class LosslessResolver
     {
-        private readonly List<ILosslessProvider> _providers = new List<ILosslessProvider>();
+        // Her kaynağa ayrı süre verilir; biri yavaşsa diğerinin süresini yemez.
+        private static readonly TimeSpan PerProviderTimeout = TimeSpan.FromSeconds(3);
 
-        public LosslessResolver()
+        private readonly List<ILosslessProvider> _providers;
+
+        public LosslessResolver(List<ILosslessProvider> activeProviders)
         {
-            // İleride başka servisler eklendiğinde buraya tek satırla eklenebilir (_providers.Add(new TidalProvider()); gibi)
-            _providers.Add(new JamendoProvider());
+            _providers = activeProviders;
         }
 
-        public async Task<string?> ResolveLosslessStreamAsync(string title, string artist, string album = "")
+        public async Task<(string? StreamUrl, string ProviderName)> ResolveAudioAsync(string title, string artist, string album, CancellationToken cancellationToken = default)
         {
-            try
+            foreach (var provider in _providers)
             {
-                Debug.WriteLine($"[LosslessResolver] Aranan Şarkı: '{artist} - {title}'");
+                if (cancellationToken.IsCancellationRequested)
+                    break;
 
-                foreach (var provider in _providers)
+                using var providerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                providerCts.CancelAfter(PerProviderTimeout);
+
+                try
                 {
-                    string? streamUrl = await provider.GetFlacStreamUrlAsync(title, artist, album);
-                    if (!string.IsNullOrEmpty(streamUrl))
-                    {
-                        return streamUrl;
-                    }
-                }
+                    System.Diagnostics.Debug.WriteLine($"[Resolver] {provider.Name} deneniyor...");
+                    var streamUrl = await provider.GetFlacStreamUrlAsync(title, artist, album, providerCts.Token);
 
-                return null;
+                    if (!string.IsNullOrEmpty(streamUrl))
+                        return (streamUrl, provider.Name);
+
+                    System.Diagnostics.Debug.WriteLine($"[Resolver] {provider.Name}: sonuç yok.");
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Dışarıdan iptal (yeni parça / toplam süre doldu)
+                    break;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Sadece bu kaynağın süresi doldu, sıradakine geç
+                    System.Diagnostics.Debug.WriteLine($"[Resolver] {provider.Name}: {PerProviderTimeout.TotalSeconds:0.#} sn zaman aşımı.");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[{provider.Name} Hata]: {ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[LosslessResolver Hata] {ex.Message}");
-                return null;
-            }
+
+            return (null, "YouTube Music");
         }
     }
 }
