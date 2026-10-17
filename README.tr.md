@@ -98,6 +98,3 @@ yedeği olarak çalan ses her zaman Windows'un varsayılan aygıtını kullanır
 - JioSaavn kaynağı resmi olmayan API'lere dayanır ve içeriği lisanssız kullanıyor olabilir. Sadece uyumluluk
   için tutulur, önerilmez.
 
-## Lisans
-
-Yayınlamadan önce seçeceğin bir `LICENSE` dosyası ekle (örneğin MIT).
