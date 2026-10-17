@@ -10,8 +10,9 @@ A badge in the top bar always shows where the sound is coming from.
 
 - YouTube Music in an embedded WebView2 browser (your own login, your own library)
 - Detects track changes and looks for the same song in other sources
-- Audio sources: **Jamendo**, **Audius**, **Local FLAC**, **JioSaavn** (experimental, see below)
+- Audio sources: **Jamendo**, **Audius**, **SoundCloud**, **Local FLAC**, **JioSaavn** (experimental, see below)
 - Source badge: `🔍 Searching`, `⏳ opening`, `🎵 <source>`, `▶ YouTube Music`, `🔇 lossless not found`
+- **Quick source toggle**: click the badge or 🔄 to cycle the current song through Jamendo → Audius → SoundCloud → YouTube Music
 - **Strict matching** so the wrong song is not played
 - **WASAPI Exclusive / Shared** output, with automatic fallback to Shared
 - **Audio output device** selection
@@ -48,6 +49,7 @@ Or open the solution in Visual Studio 2022 or newer (.NET 8 SDK) and build in **
 |---|---|---|
 | **Jamendo** | Free music released under Creative Commons licenses | Needs a free API Client ID (see below). Independent artists, small catalog |
 | **Audius** | Open music platform with artist-uploaded tracks | No API key. Mostly electronic, hip-hop and independent music |
+| **SoundCloud** | Music streaming platform | Unofficial web API, no account needed. Only fully playable tracks with a direct MP3 stream are used (typically 128 kbps, **not** lossless). Can break when SoundCloud changes its site |
 | **Local FLAC** | FLAC files in a folder you choose | The only way to get true lossless playback of your favorite songs |
 | **JioSaavn** | Unofficial community APIs | **Unreliable.** Public instances are rate-limited or offline; not recommended |
 
@@ -94,6 +96,12 @@ Changing the output device or WASAPI mode takes effect on the next track. Audio 
   Use it at your own risk.
 - Jamendo tracks are released under Creative Commons licenses; check each track's license before using
   them for anything beyond personal listening. Audius asks apps to credit artists.
+- The SoundCloud source uses SoundCloud's unofficial web API with a client ID read from the public website.
+  This is not covered by SoundCloud's API terms and may stop working at any time. Previews and restricted
+  tracks are skipped.
 - The JioSaavn source relies on unofficial APIs and may use content without a license. It is kept only for
   compatibility and is not recommended.
 
+## License
+
+Add a `LICENSE` file of your choice (for example MIT) before publishing.

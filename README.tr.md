@@ -10,8 +10,9 @@ YouTube Music için bir Windows masaüstü istemcisi. Bir şarkının eşleşmes
 
 - YouTube Music gömülü WebView2 tarayıcıda (kendi hesabın, kendi kitaplığın)
 - Parça değişimini algılar ve aynı şarkıyı diğer kaynaklarda arar
-- Ses kaynakları: **Jamendo**, **Audius**, **Yerel FLAC**, **JioSaavn** (deneysel, aşağıya bak)
+- Ses kaynakları: **Jamendo**, **Audius**, **SoundCloud**, **Yerel FLAC**, **JioSaavn** (deneysel, aşağıya bak)
 - Kaynak rozeti: `🔍 Aranıyor`, `⏳ açılıyor`, `🎵 <kaynak>`, `▶ YouTube Music`, `🔇 Lossless bulunamadı`
+- **Hızlı kaynak değiştirme**: rozete ya da 🔄 düğmesine tıklayarak o anki şarkıyı Jamendo → Audius → SoundCloud → YouTube Music arasında gezdir
 - Yanlış şarkı çalmasın diye **katı eşleştirme**
 - **WASAPI Exclusive / Shared** çıkış, başarısız olursa otomatik Shared'a geçiş
 - **Ses çıkış aygıtı** seçimi
@@ -48,6 +49,7 @@ Ya da çözümü Visual Studio 2022 veya daha yenisinde (.NET 8 SDK) açıp **Re
 |---|---|---|
 | **Jamendo** | Creative Commons lisanslı ücretsiz müzik | Ücretsiz bir API Client ID gerekir (aşağıya bak). Bağımsız sanatçılar, küçük katalog |
 | **Audius** | Sanatçıların kendi yüklediği parçalardan oluşan açık müzik platformu | API anahtarı gerekmez. Çoğunlukla elektronik, hip-hop ve bağımsız müzik |
+| **SoundCloud** | Müzik akış platformu | Resmi olmayan web API, hesap gerekmez. Sadece tam çalınabilen ve doğrudan MP3 akışı olan parçalar kullanılır (genelde 128 kbps, lossless **değil**). SoundCloud sitesini değiştirirse bozulabilir |
 | **Yerel FLAC** | Seçtiğin klasördeki FLAC dosyaları | Sevdiğin şarkıları gerçekten lossless dinlemenin tek yolu |
 | **JioSaavn** | Resmi olmayan topluluk API'leri | **Güvenilmez.** Herkese açık adresler hız sınırlı ya da kapalı, önerilmez |
 
@@ -95,6 +97,12 @@ yedeği olarak çalan ses her zaman Windows'un varsayılan aygıtını kullanır
   çelişebilir. Kullanım riski sana aittir.
 - Jamendo parçaları Creative Commons lisanslıdır; kişisel dinleme dışındaki kullanımlar için her parçanın
   lisansına bak. Audius, uygulamaların sanatçılara atıf yapmasını ister.
+- SoundCloud kaynağı, herkese açık siteden okunan bir client ID ile SoundCloud'un resmi olmayan web API'sini
+  kullanır. Bu, SoundCloud'un API şartları kapsamında değildir ve herhangi bir zamanda çalışmayı bırakabilir.
+  Önizlemeler ve kısıtlı parçalar atlanır.
 - JioSaavn kaynağı resmi olmayan API'lere dayanır ve içeriği lisanssız kullanıyor olabilir. Sadece uyumluluk
   için tutulur, önerilmez.
 
+## Lisans
+
+Yayınlamadan önce seçeceğin bir `LICENSE` dosyası ekle (örneğin MIT).
