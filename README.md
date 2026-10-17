@@ -97,6 +97,3 @@ Changing the output device or WASAPI mode takes effect on the next track. Audio 
 - The JioSaavn source relies on unofficial APIs and may use content without a license. It is kept only for
   compatibility and is not recommended.
 
-## License
-
-Add a `LICENSE` file of your choice (for example MIT) before publishing.
