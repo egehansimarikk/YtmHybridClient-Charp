@@ -35,7 +35,7 @@ YouTube Music için bir Windows masaüstü istemcisi. Bir şarkının eşleşmes
 ## Kaynak koddan derleme
 
 ```powershell
-git clone <depo-adresin>
+git clone https://github.com/egehansimarikk/YtmHybridClient
 cd YtmHybridClient
 dotnet build -c Release
 ```
