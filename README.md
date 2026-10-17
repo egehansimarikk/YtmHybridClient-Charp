@@ -35,7 +35,7 @@ A badge in the top bar always shows where the sound is coming from.
 ## Build from source
 
 ```powershell
-git clone <[your-repo-url](https://github.com/egehansimarikk/YtmHybridClient)>
+git clone https://github.com/egehansimarikk/YtmHybridClient
 cd YtmHybridClient
 dotnet build -c Release
 ```
