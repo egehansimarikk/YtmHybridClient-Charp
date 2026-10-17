@@ -1,0 +1,18 @@
+﻿## Visual Studio & C# Derleme Çıktıları
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## WebView2 Kullanıcı Profil Klasörü (Oturum Çerezleri & Çerez Hash'leri)
+**/WebView2Profile/
+
+## Yerel Yapılandırma
+appsettings.json
+
+## NuGet & Paket Dosyaları
+*.nupkg
+*.appx
