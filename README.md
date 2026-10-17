@@ -1,125 +1,102 @@
-# 🎵 YTM Lossless Hybrid Client
+# YTM Lossless Hybrid Client
 
-![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)
-![NET](https://img.shields.io/badge/.NET-8.0-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)
-![Audio](https://img.shields.io/badge/Audio-WASAPI%20Exclusive%20(Bit--Perfect)-brightgreen.svg)
+A Windows desktop client for YouTube Music that can play a track from another audio source
+(Jamendo, Audius, your own FLAC files) when a match is found, and falls back to YouTube Music otherwise.
+A badge in the top bar always shows where the sound is coming from.
 
-**YTM Lossless Hybrid Client** is an open-source, high-fidelity desktop client designed for audiophiles. It combines the familiar user experience of YouTube Music with a low-level C# audio engine (`NAudio`) that streams bit-perfect, lossless audio directly to your DAC or audio hardware via **WASAPI Exclusive mode**.
+🇹🇷 [Türkçe README](README.tr.md)
 
----
+## Features
 
-## 🌟 Key Features
+- YouTube Music in an embedded WebView2 browser (your own login, your own library)
+- Detects track changes and looks for the same song in other sources
+- Audio sources: **Jamendo**, **Audius**, **Local FLAC**, **JioSaavn** (experimental, see below)
+- Source badge: `🔍 Searching`, `⏳ opening`, `🎵 <source>`, `▶ YouTube Music`, `🔇 lossless not found`
+- **Strict matching** so the wrong song is not played
+- **WASAPI Exclusive / Shared** output, with automatic fallback to Shared
+- **Audio output device** selection
+- **Smart Fallback**: play YouTube Music's own audio when nothing better is found (or stay silent)
+- Turkish and English interface
 
-- 🔊 **WASAPI Exclusive Bit-Perfect Audio:** Completely bypasses the Windows Software Audio Mixer (`AudioSrv`) and sample rate converters to deliver pure, unadulterated audio directly to your sound hardware.
-- 🎛️ **Modular Lossless Resolver (`ILosslessProvider`):** Features a pluggable provider pipeline that resolves lossless audio streams (FLAC/Hi-Res) via APIs like **Jamendo** or your **Local FLAC Library**.
-- ⚡ **Smart Fallback Engine:** Automatically detects if a track is unavailable in lossless format and seamlessly restores YouTube Music's web audio stream so your music never stops.
-- 🛡️ **API & Network Level Ad Blocking:** Hooks into YouTube Music's internal `fetch` API payloads to strip ad placement objects before rendering, backed by C# web resource request filters.
-- 🔄 **Bidirectional Player Sync:** Real-time synchronization of playback states (**Play**, **Pause**, and **Seek / Position Changes**) between the YouTube Music frontend and the C# NAudio engine.
-- ⚙️ **Configurable UI & Settings:** Built-in WPF Settings dialog backed by persistent `appsettings.json` configuration for custom directories, API keys, and audio modes.
+## Requirements
 
----
+- Windows 10 or 11
+- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+  (already installed on most up-to-date Windows 10/11 systems)
 
-## 🏗️ Architecture Overview
+## Installation
 
-The application utilizes a hybrid architecture bridging **Microsoft WebView2** (Chromium-based frontend) and **.NET C# WPF** (Low-level backend) through Inter-Process Communication (IPC).
+1. Download the latest zip from the [Releases](../../releases) page.
+2. Extract it anywhere and run `YtmHybridClient.exe`.
+3. Sign in to YouTube Music in the app window.
+4. Open **Settings** and choose your sources.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│            YouTube Music Web UI (WebView2)              │
-│  - Chromium JS Interceptor & MutationObserver           │
-│  - Fetch/XHR Payload Hooking (Ad Removal)               │
-└────────────────────────────┬────────────────────────────┘
-                             │
-                  IPC (WebMessage / JSON)
-                             │
-┌────────────────────────────▼────────────────────────────┐
-│                    C# Hybrid Engine                     │
-│  - LosslessResolver Pipeline (Jamendo / Local FLAC)     │
-│  - Smart Fallback & Web Mute Controller                 │
-└────────────────────────────┬────────────────────────────┘
-                             │
-                NAudio WASAPI Engine
-                             │
-┌────────────────────────────▼────────────────────────────┐
-│          Hardware Sound Card / External DAC             │
-└─────────────────────────────────────────────────────────┘
+## Build from source
+
+```powershell
+git clone <your-repo-url>
+cd YtmHybridClient
+dotnet build -c Release
 ```
 
----
+Or open the solution in Visual Studio 2022 or newer (.NET 8 SDK) and build in **Release**.
 
-## 🚀 Getting Started
+## Audio sources
 
-### Prerequisites
+| Source | What it is | Notes |
+|---|---|---|
+| **Jamendo** | Free music released under Creative Commons licenses | Needs a free API Client ID (see below). Independent artists, small catalog |
+| **Audius** | Open music platform with artist-uploaded tracks | No API key. Mostly electronic, hip-hop and independent music |
+| **Local FLAC** | FLAC files in a folder you choose | The only way to get true lossless playback of your favorite songs |
+| **JioSaavn** | Unofficial community APIs | **Unreliable.** Public instances are rate-limited or offline; not recommended |
 
-- **Windows 10/11** (64-bit)
-- **.NET 8.0 SDK** or later
-- **Visual Studio 2022** (with *.NET Desktop Development* workload)
-- **WebView2 Runtime** (pre-installed on Windows 11)
+> **Expect a lot of "YouTube Music".** Jamendo and Audius are independent catalogs. Most mainstream
+> songs are not there and will play from YouTube Music. That is by design.
 
-### Installation & Building from Source
+### Jamendo Client ID
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/egehansimarikk/YtmHybridClient.git
-   cd YtmHybridClient
-   ```
+Create a free application at [developer.jamendo.com](https://developer.jamendo.com/) and paste your
+Client ID into **Settings → Jamendo API Client ID**. Using your own ID avoids shared rate limits.
 
-2. **Open the solution:**
-   Launch `YtmHybridClient.sln` in Visual Studio 2022.
+## Settings
 
-3. **Restore NuGet Packages:**
-   Visual Studio will automatically restore the required dependencies:
-   - `NAudio` (WASAPI Engine)
-   - `Microsoft.Web.WebView2` (Chromium Runtime)
-   - `System.Text.Json`
+| Setting | Description |
+|---|---|
+| Language | Turkish or English |
+| Primary / Secondary source | Order in which sources are tried |
+| Audio output device | Output device for external sources. *System default* if empty |
+| Local FLAC folder | Folder searched by the Local FLAC source |
+| Jamendo API Client ID | Your Jamendo API key |
+| Strict matching | Require title **and** artist to match. Turn off to get more matches at the risk of wrong songs |
+| WASAPI Exclusive | Bit-perfect output that locks the device. Falls back to Shared if it fails |
+| Smart Fallback | Play YouTube Music's audio when no lossless match is found. If off, those songs stay silent |
 
-4. **Build and Run:**
-   Press `F5` to build and launch the application in Debug mode, or build as `Release` for optimized performance.
+Settings are stored in `%AppData%\YtmHybridClient\appsettings.json`.
+The browser profile (login, cookies) is stored in `%AppData%\YtmHybridClient\WebView2Profile`.
 
----
+Changing the output device or WASAPI mode takes effect on the next track. Audio from the
+"YouTube Music" fallback always uses the Windows default device.
 
-## ⚙️ Configuration
+## Troubleshooting
 
-The client automatically creates and manages `appsettings.json` located at `%AppData%\YtmHybridClient\appsettings.json`. You can also configure these settings directly through the in-app **⚙ Settings** button in the top bar:
+- **Badge stays on "Searching..."** – Update to v1.2.0 or newer.
+- **Source never shows up** – Check that the song exists in that catalog. Try turning Strict matching off.
+- **No sound at all** – Smart Fallback may be off, or the selected output device is in use by another
+  application in Exclusive mode. Try turning Exclusive off.
+- **Logs** – When running from Visual Studio, the Output window (Debug) shows lines such as
+  `[Resolver]`, `[Jamendo]`, `[Audius]`, `[AudioEngine]` that explain every decision.
 
-| Setting Key | Type | Description | Default |
-| :--- | :--- | :--- | :--- |
-| `LocalFlacFolder` | `string` | Local directory scanned for offline FLAC matches. | `C:\Music\FLAC` |
-| `JamendoClientId` | `string` | API Key for Jamendo royalty-free FLAC resolution. | `6a4bec36` |
-| `UseWasapiExclusive` | `bool` | Enables WASAPI Exclusive hardware lock. | `true` |
-| `EnableSmartFallback` | `bool` | Unmutes YTM audio if no external lossless source is found. | `true` |
+## Disclaimer
 
----
+- This project is **not affiliated with** Google, YouTube, Jamendo, Audius or JioSaavn.
+- The app hides and filters ads on the YouTube Music page. This may violate YouTube's Terms of Service.
+  Use it at your own risk.
+- Jamendo tracks are released under Creative Commons licenses; check each track's license before using
+  them for anything beyond personal listening. Audius asks apps to credit artists.
+- The JioSaavn source relies on unofficial APIs and may use content without a license. It is kept only for
+  compatibility and is not recommended.
 
-## 🛠️ Extending Lossless Providers
+## License
 
-You can add custom lossless providers (e.g., Tidal, Subsonic, Navidrome, Plex) by implementing the `ILosslessProvider` interface in C#:
-
-```csharp
-public interface ILosslessProvider
-{
-    string Name { get; }
-    Task<string?> GetFlacStreamUrlAsync(string title, string artist, string album);
-}
-```
-
-Once implemented, register your provider inside `LosslessResolver.cs` to integrate it into the fallback resolution chain.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open issues or submit Pull Requests for bug fixes, new features, or additional `ILosslessProvider` integrations.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📜 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Add a `LICENSE` file of your choice (for example MIT) before publishing.
