@@ -48,7 +48,10 @@
                 <!-- Ses Çıkış Aygıtı -->
                 <TextBlock Text="Ses Çıkış Aygıtı:" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
                 <ComboBox x:Name="CmbAudioDevice" Height="35" Margin="0,0,0,15" VerticalContentAlignment="Center" Padding="5"
-                          DisplayMemberPath="Name" SelectedValuePath="Id"/>
+                          DisplayMemberPath="Name" SelectedValuePath="Id"
+                          SelectionChanged="CmbAudioDevice_SelectionChanged"/>
+                <TextBlock TextWrapping="Wrap" Foreground="#9E9E9E" FontSize="11" Margin="0,-8,0,15"
+                           Text="Not: Bu ayar Jamendo, Audius, SoundCloud ve Yerel FLAC için geçerlidir. Rozette '▶ YouTube Music' yazan şarkılar Windows'un varsayılan çıkış aygıtından çalar. Aygıt seçer seçmez uygulanır; İptal'e basarsan eski aygıta dönülür."/>
 
                 <!-- Yerel FLAC Klasörü -->
                 <TextBlock Text="Yerel FLAC Müzik Klasörü:" FontWeight="SemiBold" Margin="0,0,0,5"/>
@@ -87,6 +90,8 @@
         <!-- Alt Butonlar -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="İptal" Padding="20,8" Margin="0,0,10,0" Background="#383838" Foreground="White" BorderThickness="0" Click="BtnCancel_Click"/>
+            <Button Content="Kaydet ve Yeniden Başlat" Padding="20,8" Margin="0,0,10,0" Background="#383838" Foreground="White" BorderThickness="0"
+                    ToolTip="Ayarları kaydeder, uygulamayı kapatıp yeniden açar" Click="BtnSaveRestart_Click"/>
             <Button Content="Kaydet" Padding="20,8" Background="#FF0055" Foreground="White" FontWeight="Bold" BorderThickness="0" Click="BtnSave_Click"/>
         </StackPanel>
     </Grid>

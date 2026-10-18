@@ -1,4 +1,7 @@
-﻿using System.Windows;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using YtmHybridClient.Helpers;
@@ -8,6 +11,12 @@ namespace YtmHybridClient
     public partial class SettingsWindow : Window
     {
         public AppSettings CurrentSettings { get; private set; }
+
+        // Ses aygıtı seçilir seçilmez çalan akışa uygulanır (önizleme); İptal'de eskisine dönülür
+        private string _originalDeviceId = "";
+        private bool _initialized;
+        private bool _previewed;
+        private bool _saved;
 
         public SettingsWindow(AppSettings settings)
         {
@@ -31,6 +40,29 @@ namespace YtmHybridClient
             CmbAudioDevice.SelectedValue = settings.AudioDeviceId ?? "";
             if (CmbAudioDevice.SelectedIndex < 0)
                 CmbAudioDevice.SelectedIndex = 0; // kayıtlı aygıt takılı değilse sistem varsayılanı
+
+            _originalDeviceId = settings.AudioDeviceId ?? "";
+            _initialized = true;   // buradan sonraki seçim değişiklikleri kullanıcıdan gelir
+        }
+
+        // Aygıt seçilir seçilmez, çalan harici akışı yeni aygıta taşı (Kaydet beklenmez)
+        private async void CmbAudioDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            string deviceId = CmbAudioDevice.SelectedValue as string ?? "";
+            if (Application.Current.MainWindow is MainWindow mainWin)
+            {
+                _previewed = true;
+                try
+                {
+                    await mainWin.ApplyAudioDeviceAsync(deviceId);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Settings] Aygıt değiştirilemedi: {ex.Message}");
+                }
+            }
         }
 
         private void BtnBrowse_Click(object sender, RoutedEventArgs e)
@@ -48,6 +80,23 @@ namespace YtmHybridClient
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
+            ApplySettings();
+            DialogResult = true;
+            Close();
+        }
+
+        // Kaydeder, sonra kurulu uygulamayı kapatıp yeniden açar
+        private void BtnSaveRestart_Click(object sender, RoutedEventArgs e)
+        {
+            ApplySettings();
+            RestartApplication();
+        }
+
+        // Formdaki değerleri ayarlara yazar, dosyaya kaydeder ve ana pencereye uygular
+        private void ApplySettings()
+        {
+            _saved = true;
+
             // Metin ve CheckBox alanlarını kaydet
             CurrentSettings.LocalFlacFolder = TxtFlacFolder.Text;
             CurrentSettings.JamendoClientId = TxtJamendoClientId.Text;
@@ -55,6 +104,7 @@ namespace YtmHybridClient
             CurrentSettings.EnableSmartFallback = ChkSmartFallback.IsChecked ?? true;
             CurrentSettings.StrictMatching = ChkStrictMatching.IsChecked ?? true;
             CurrentSettings.AudioDeviceId = CmbAudioDevice.SelectedValue as string ?? "";
+            // Not: seçilen aygıt, ComboBox değişirken çalan akışa zaten uygulandı
 
             // Yeni Dil ve Kaynak Ayarlarını ComboBox'lardan oku
             if (CmbLanguage.SelectedItem is ComboBoxItem langItem)
@@ -77,9 +127,48 @@ namespace YtmHybridClient
             {
                 mainWin.InitAudioResolver();
             }
+        }
 
-            DialogResult = true;
-            Close();
+        // Çalışan exe'yi (kurulu uygulama ya da proje çıktısı) kapatıp yeniden başlatır
+        private void RestartApplication()
+        {
+            try
+            {
+                string? exePath = Environment.ProcessPath;
+                if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+                {
+                    MessageBox.Show("Uygulama yolu bulunamadı. Ayarlar kaydedildi; lütfen uygulamayı elle kapatıp yeniden aç.",
+                                    "Yeniden başlat", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Yeni kopya, eskisi kapanıp WebView2 profilini bırakana kadar ~2 sn bekler
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c ping 127.0.0.1 -n 3 >nul & start \"\" \"{exePath}\"",
+                    WorkingDirectory = Path.GetDirectoryName(exePath) ?? AppContext.BaseDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                Process.Start(psi);
+
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Uygulama yeniden başlatılamadı: {ex.Message}\nAyarlar kaydedildi; uygulamayı elle yeniden aç.",
+                                "Yeniden başlat", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        // Kaydetmeden kapatılırsa (İptal ya da pencere X) önizlenen aygıttan eskisine dön
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+
+            if (_previewed && !_saved && Application.Current?.MainWindow is MainWindow mainWin)
+                _ = mainWin.ApplyAudioDeviceAsync(_originalDeviceId);
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

@@ -31,6 +31,7 @@ namespace YtmHybridClient
         private string _currentArtist = "";
         private string _currentAlbum = "";
         private bool _isSwitchingSource;
+        private string _currentStreamUrl = "";   // çalan harici akışın adresi (aygıt değişince yeniden açmak için)
 
         private AppSettings _appSettings = AppSettings.Load();
 
@@ -87,6 +88,45 @@ namespace YtmHybridClient
                 list.Add(new LocalFlacProvider(settings.LocalFlacFolder));
         }
 
+        // target=_blank / window.open istekleri (paylaş, giriş, harici bağlantılar vb.)
+        private void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+        {
+            // Varsayılan davranış ayrı bir WebView2 penceresi açmaktır; onu kendimiz yönetiriz
+            e.Handled = true;
+
+            // Kullanıcı tıklaması olmadan açılmaya çalışan pencereleri (reklam/pop-up) engelle
+            if (!e.IsUserInitiated)
+                return;
+
+            if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                return;
+
+            try
+            {
+                if (IsHostOrSubdomain(uri.Host, "youtube.com") || IsHostOrSubdomain(uri.Host, "google.com"))
+                {
+                    // YouTube / Google sayfaları aynı pencerede açılır (oturum açma, hesap sayfaları vb.)
+                    YtmWebView.CoreWebView2.Navigate(e.Uri);
+                }
+                else
+                {
+                    // Diğer bağlantılar varsayılan tarayıcıda açılır
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[NewWindow Hata]: {ex.Message}");
+            }
+        }
+
+        private static bool IsHostOrSubdomain(string host, string domain)
+        {
+            return host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+                   host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
+        }
+
         private async void InitializeWebViewAsync()
         {
             try
@@ -102,6 +142,12 @@ namespace YtmHybridClient
                 YtmWebView.CoreWebView2.Settings.UserAgent =
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
                 YtmWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                YtmWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                YtmWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;   // alert/confirm penceresi
+                YtmWebView.CoreWebView2.Settings.IsScriptEnabled = true;
+                YtmWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+
+                YtmWebView.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
 
                 YtmWebView.CoreWebView2.AddWebResourceRequestedFilter("*googleads*", CoreWebView2WebResourceContext.All);
                 YtmWebView.CoreWebView2.AddWebResourceRequestedFilter("*doubleclick.net*", CoreWebView2WebResourceContext.All);
@@ -184,8 +230,7 @@ namespace YtmHybridClient
                         style.textContent = `
                             .ytp-ad-overlay-container, .ytp-ad-message-container,
                             .video-ads, ytm-promoted-sparkles-web-renderer,
-                            ytmusic-mealbar-promo-renderer, .tp-yt-paper-dialog,
-                            ytmusic-popup-container, .ytp-ad-player-overlay,
+                            ytmusic-mealbar-promo-renderer, .ytp-ad-player-overlay,
                             ytmusic-pivots, #player-ads { display: none !important; }
                         `;
                         whenDomReady(function () { (document.head || document.documentElement).appendChild(style); });
@@ -423,6 +468,7 @@ namespace YtmHybridClient
                     _isExternalAudioActive = true;
                     await SafeExecuteScriptAsync("window.setYtmMute(true);");
                     _currentSource = result.ProviderName;
+                    _currentStreamUrl = result.StreamUrl ?? "";
                     await UpdateStatusBadgeAsync(GetProviderBadgeText(result.ProviderName), GetBadgeColor(result.ProviderName));
                     externalPlaybackStarted = true;
                 }
@@ -604,7 +650,10 @@ namespace YtmHybridClient
                     if (version != Volatile.Read(ref _trackChangeVersion)) return;
 
                     if (started)
+                    {
                         _isExternalAudioActive = true;
+                        _currentStreamUrl = url;
+                    }
                 }
                 finally
                 {
@@ -648,6 +697,97 @@ namespace YtmHybridClient
             {
                 _audioEngineLock.Release();
             }
+        }
+
+        /// <summary>
+        /// Çıkış aygıtını anında değiştirir (Ayarlar penceresinden çağrılır). Çalan harici akış kesilmeden yeni
+        /// aygıta taşınır; konum ve duraklatma durumu korunur. Harici akış çalmıyorsa sadece sonraki akışta kullanılır.
+        /// </summary>
+        public async Task ApplyAudioDeviceAsync(string deviceId)
+        {
+            _audioEngine.DeviceId = deviceId ?? "";
+            await ReapplyAudioOutputAsync();
+        }
+
+        // Ses aygıtı / WASAPI modu değişince çalan harici akışı yeni çıkışa taşır
+        private async Task ReapplyAudioOutputAsync()
+        {
+            if (!_isExternalAudioActive || string.IsNullOrEmpty(_currentStreamUrl))
+                return;
+
+            int version = Volatile.Read(ref _trackChangeVersion);
+
+            if (!await _audioEngineLock.WaitAsync(TimeSpan.FromSeconds(8)))
+                return;
+
+            bool failed = false;
+            try
+            {
+                if (version != Volatile.Read(ref _trackChangeVersion) || !_isExternalAudioActive)
+                    return;
+
+                bool wasPaused = _audioEngine.IsPaused;
+
+                // 1) Hızlı yol: akış açık kalır, sadece WASAPI çıkışı yeni aygıta taşınır
+                bool switched;
+                try
+                {
+                    switched = await _audioEngine
+                        .ChangeOutputDeviceAsync(_audioEngine.DeviceId)
+                        .WaitAsync(TimeSpan.FromSeconds(6));
+                }
+                catch (TimeoutException)
+                {
+                    // Motor takılmış olabilir; ona dokunmadan hata göster
+                    System.Diagnostics.Debug.WriteLine("[Aygıt] Aygıt değiştirme 6 sn içinde bitmedi.");
+                    failed = true;
+                    return;
+                }
+
+                if (switched)
+                {
+                    System.Diagnostics.Debug.WriteLine("[Aygıt] Çalan akış yeni aygıta taşındı.");
+                    return;
+                }
+
+                if (version != Volatile.Read(ref _trackChangeVersion))
+                    return;
+
+                // 2) Yedek yol: akışı yeni aygıtta aynı konumdan baştan aç
+                TimeSpan position = _audioEngine.CurrentPosition;
+                System.Diagnostics.Debug.WriteLine($"[Aygıt] Yedek yol: akış yeniden açılıyor (konum: {position:mm\\:ss})");
+
+                bool started;
+                try
+                {
+                    started = await _audioEngine
+                        .PlayStreamAsync(_currentStreamUrl, TimeSpan.FromSeconds(5), position)
+                        .WaitAsync(TimeSpan.FromSeconds(7));
+                }
+                catch (TimeoutException)
+                {
+                    started = false;
+                }
+
+                if (version != Volatile.Read(ref _trackChangeVersion))
+                    return;
+
+                if (started)
+                {
+                    if (wasPaused) _audioEngine.Pause();
+                }
+                else
+                {
+                    failed = true;
+                }
+            }
+            finally
+            {
+                _audioEngineLock.Release();
+            }
+
+            if (failed)
+                await FailSwitchAsync(string.IsNullOrEmpty(_currentSource) ? "Ses" : _currentSource, "yeni aygıtta açılamadı");
         }
 
         // Seçilen kaynak çalmadıysa sessiz kalma: YouTube Music'in sesini geri aç
@@ -717,8 +857,11 @@ namespace YtmHybridClient
             return await operation.Task.Unwrap().WaitAsync(TimeSpan.FromSeconds(3));
         }
 
-        private void BtnSettings_Click(object sender, RoutedEventArgs e)
+        private async void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
+            // Ayarlar kaydedilirken InitAudioResolver motoru güncellediği için eski değeri önce al
+            bool oldExclusive = _audioEngine.UseExclusive;
+
             var settingsWindow = new SettingsWindow(AppSettings.Load()) { Owner = this };
             if (settingsWindow.ShowDialog() == true)
             {
@@ -726,6 +869,10 @@ namespace YtmHybridClient
                 LanguageManager.ChangeLanguage(_appSettings.Language);
                 InitAudioResolver();
                 System.Diagnostics.Debug.WriteLine("[Settings] Ayarlar kaydedildi, dil ve ses çözücü zinciri yenilendi.");
+
+                // Aygıt, Ayarlar penceresinde seçilirken zaten uygulandı. WASAPI modu değiştiyse çalan akışı yeni modda aç.
+                if (_audioEngine.UseExclusive != oldExclusive)
+                    await ReapplyAudioOutputAsync();
             }
         }
 
