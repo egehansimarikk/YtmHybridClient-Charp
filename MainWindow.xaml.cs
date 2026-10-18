@@ -58,6 +58,7 @@ namespace YtmHybridClient
             _appSettings = AppSettings.Load();
             _audioEngine.UseExclusive = _appSettings.UseWasapiExclusive;
             _audioEngine.DeviceId = _appSettings.AudioDeviceId ?? "";
+            ApplyExternalGain(_appSettings.ExternalGainDb);
             var activeProviders = new List<ILosslessProvider>();
 
             AddProvider(activeProviders, _appSettings.PrimarySource, _appSettings);
@@ -447,6 +448,8 @@ namespace YtmHybridClient
                     if (trackChangeVersion != Volatile.Read(ref _trackChangeVersion))
                         return;
 
+                    // Yerel FLAC bit-perfect kalır; çevrimiçi kaynaklara ses takviyesi uygulanır
+                    _audioEngine.GainDb = IsLocalSource(result.ProviderName) ? 0f : _appSettings.ExternalGainDb;
                     System.Diagnostics.Debug.WriteLine("[3] Çalma başlıyor");
                     bool playbackStarted;
                     try
@@ -638,6 +641,7 @@ namespace YtmHybridClient
 
                     try
                     {
+                        _audioEngine.GainDb = _appSettings.ExternalGainDb;
                         started = await _audioEngine
                             .PlayStreamAsync(url, TimeSpan.FromSeconds(5), position)
                             .WaitAsync(TimeSpan.FromSeconds(7));
@@ -703,6 +707,20 @@ namespace YtmHybridClient
         /// Çıkış aygıtını anında değiştirir (Ayarlar penceresinden çağrılır). Çalan harici akış kesilmeden yeni
         /// aygıta taşınır; konum ve duraklatma durumu korunur. Harici akış çalmıyorsa sadece sonraki akışta kullanılır.
         /// </summary>
+        private static bool IsLocalSource(string providerName)
+        {
+            return providerName is "Local FLAC" or "LocalFLAC";
+        }
+
+        /// <summary>
+        /// Harici kaynakların ses takviyesini (dB) çalan akışa da anında uygular (Ayarlar penceresinden çağrılır).
+        /// Çalan kaynak Yerel FLAC ise takviye uygulanmaz.
+        /// </summary>
+        public void ApplyExternalGain(float gainDb)
+        {
+            _audioEngine.GainDb = IsLocalSource(_currentSource) ? 0f : gainDb;
+        }
+
         public async Task ApplyAudioDeviceAsync(string deviceId)
         {
             _audioEngine.DeviceId = deviceId ?? "";

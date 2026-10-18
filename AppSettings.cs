@@ -10,14 +10,17 @@ namespace YtmHybridClient
         public string LocalFlacFolder { get; set; } = @"C:\Music\FLAC";
         public string JamendoClientId { get; set; } = "6a4bec36";
         public bool EnableSmartFallback { get; set; } = true;
-        public bool UseWasapiExclusive { get; set; } = false;
+        public bool UseWasapiExclusive { get; set; } = true;
 
         // Ses çıkış aygıtının kimliği. Boş = sistem varsayılanı
         public string AudioDeviceId { get; set; } = "";
 
+        // Harici kaynaklar (Jamendo, Audius, SoundCloud) için ses takviyesi, dB. 0 = kapalı. Yerel FLAC'e uygulanmaz.
+        public float ExternalGainDb { get; set; } = 1.5f;
+
         // --- Yeni Eklenecek Özellikler (v1.1.0) ---
         public string Language { get; set; } = "tr"; // "tr" veya "en"
-        public string PrimarySource { get; set; } = "Jamendo"; // "Jamendo", "Audius", "LocalFLAC", "JioSaavn(NOT WORKING)"
+        public string PrimarySource { get; set; } = "Jamendo"; // "Jamendo", "Audius", "LocalFLAC", "JioSaavn"
         public string SecondarySource { get; set; } = "Audius";
 
         // Ayar dosyası sürümü. Eski dosyalarda bu alan yoktur ve 1 olarak okunur (otomatik geçiş için).

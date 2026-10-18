@@ -17,6 +17,8 @@ namespace YtmHybridClient
         private bool _initialized;
         private bool _previewed;
         private bool _saved;
+        private float _originalGainDb;
+        private bool _gainPreviewed;
 
         public SettingsWindow(AppSettings settings)
         {
@@ -42,6 +44,12 @@ namespace YtmHybridClient
                 CmbAudioDevice.SelectedIndex = 0; // kayıtlı aygıt takılı değilse sistem varsayılanı
 
             _originalDeviceId = settings.AudioDeviceId ?? "";
+
+            // Ses takviyesi kaydırıcısı (seçer seçmez çalan akışa uygulanır; İptal'de eskisine dönülür)
+            _originalGainDb = settings.ExternalGainDb;
+            SldGain.Value = Math.Clamp(settings.ExternalGainDb, 0f, 6f);
+            UpdateGainLabel();
+
             _initialized = true;   // buradan sonraki seçim değişiklikleri kullanıcıdan gelir
         }
 
@@ -63,6 +71,28 @@ namespace YtmHybridClient
                     Debug.WriteLine($"[Settings] Aygıt değiştirilemedi: {ex.Message}");
                 }
             }
+        }
+
+        private void SldGain_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            UpdateGainLabel();
+            if (!_initialized) return;
+
+            if (Application.Current.MainWindow is MainWindow mainWin)
+            {
+                _gainPreviewed = true;
+                mainWin.ApplyExternalGain((float)SldGain.Value);
+            }
+        }
+
+        private void UpdateGainLabel()
+        {
+            if (TxtGainLabel == null || SldGain == null) return;
+
+            double value = SldGain.Value;
+            TxtGainLabel.Text = value <= 0
+                ? "Harici Kaynak Ses Takviyesi: kapalı"
+                : $"Harici Kaynak Ses Takviyesi: +{value:0.0} dB";
         }
 
         private void BtnBrowse_Click(object sender, RoutedEventArgs e)
@@ -104,6 +134,7 @@ namespace YtmHybridClient
             CurrentSettings.EnableSmartFallback = ChkSmartFallback.IsChecked ?? true;
             CurrentSettings.StrictMatching = ChkStrictMatching.IsChecked ?? true;
             CurrentSettings.AudioDeviceId = CmbAudioDevice.SelectedValue as string ?? "";
+            CurrentSettings.ExternalGainDb = (float)SldGain.Value;
             // Not: seçilen aygıt, ComboBox değişirken çalan akışa zaten uygulandı
 
             // Yeni Dil ve Kaynak Ayarlarını ComboBox'lardan oku
@@ -167,8 +198,14 @@ namespace YtmHybridClient
         {
             base.OnClosed(e);
 
-            if (_previewed && !_saved && Application.Current?.MainWindow is MainWindow mainWin)
+            if (_saved || Application.Current?.MainWindow is not MainWindow mainWin)
+                return;
+
+            if (_previewed)
                 _ = mainWin.ApplyAudioDeviceAsync(_originalDeviceId);
+
+            if (_gainPreviewed)
+                mainWin.ApplyExternalGain(_originalGainDb);
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

@@ -53,6 +53,13 @@
                 <TextBlock TextWrapping="Wrap" Foreground="#9E9E9E" FontSize="11" Margin="0,-8,0,15"
                            Text="Not: Bu ayar Jamendo, Audius, SoundCloud ve Yerel FLAC için geçerlidir. Rozette '▶ YouTube Music' yazan şarkılar Windows'un varsayılan çıkış aygıtından çalar. Aygıt seçer seçmez uygulanır; İptal'e basarsan eski aygıta dönülür."/>
 
+                <!-- Harici Kaynak Ses Takviyesi -->
+                <TextBlock x:Name="TxtGainLabel" Text="Harici Kaynak Ses Takviyesi" FontWeight="SemiBold" Margin="0,0,0,5" Foreground="White"/>
+                <Slider x:Name="SldGain" Minimum="0" Maximum="6" TickFrequency="0.5" TickPlacement="BottomRight"
+                        IsSnapToTickEnabled="True" Margin="0,0,0,5" ValueChanged="SldGain_ValueChanged"/>
+                <TextBlock TextWrapping="Wrap" Foreground="#9E9E9E" FontSize="11" Margin="0,0,0,15"
+                           Text="Jamendo, Audius ve SoundCloud sesini YouTube Music seviyesine yaklaştırır. 0 = kapalı. Yerel FLAC'e uygulanmaz. Tepeler yumuşak bir sınırlayıcıyla korunur; yüksek değerler hafif renklenmeye yol açabilir."/>
+
                 <!-- Yerel FLAC Klasörü -->
                 <TextBlock Text="Yerel FLAC Müzik Klasörü:" FontWeight="SemiBold" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">

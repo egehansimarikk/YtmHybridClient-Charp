@@ -1,5 +1,6 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,13 +11,82 @@ namespace YtmHybridClient
     /// <summary>Ayarlar penceresindeki ses aygıtı listesi için (Id boş = sistem varsayılanı).</summary>
     public record AudioDeviceInfo(string Id, string Name);
 
+    /// <summary>
+    /// Örnek düzeyinde kazanç (takviye) uygular. 0 dBFS'yi aşan tepeleri patlatmak yerine yumuşak bir
+    /// sınırlayıcıyla (soft clip) 1.0'ın altında tutar. Kazanç değişimi tampon içinde yumuşatılır (tıklama olmaz).
+    /// Not: Bu bir "look-ahead limiter" değil, basit bir yumuşak kırpıcıdır; çok yüksek seviyeli kayıtlarda tepelerde
+    /// hafif harmonik renklenme olabilir.
+    /// </summary>
+    internal sealed class GainSampleProvider : ISampleProvider
+    {
+        private const float Threshold = 0.89f;   // ≈ -1 dBFS: bunun altındaki örnekler dokunulmadan geçer
+
+        private readonly ISampleProvider _source;
+        private float _appliedGain;
+        private volatile float _targetGain;
+
+        public GainSampleProvider(ISampleProvider source, float gain)
+        {
+            _source = source;
+            _appliedGain = gain;
+            _targetGain = gain;
+        }
+
+        public WaveFormat WaveFormat => _source.WaveFormat;
+
+        /// <summary>Doğrusal çarpan (1.0 = değişiklik yok).</summary>
+        public float Gain
+        {
+            get => _targetGain;
+            set => _targetGain = value;
+        }
+
+        // NAudio'nun bu sürümünde ISampleProvider.Read, Span<float> alır
+        public int Read(Span<float> buffer)
+        {
+            int read = _source.Read(buffer);
+            if (read <= 0) return read;
+
+            float start = _appliedGain;
+            float end = _targetGain;
+
+            for (int i = 0; i < read; i++)
+            {
+                // Kazanç değiştiyse tampon boyunca yavaşça yeni değere geç
+                float gain = start == end ? end : start + (end - start) * (i + 1) / read;
+                buffer[i] = Limit(buffer[i] * gain);
+            }
+
+            _appliedGain = end;
+            return read;
+        }
+
+        private static float Limit(float x)
+        {
+            if (float.IsNaN(x)) return 0f;
+
+            float abs = MathF.Abs(x);
+            if (abs <= Threshold) return x;
+
+            // Eşiğin üstünü tanh ile 1.0'a asimptotik yaklaştır: asla 1.0'ı geçmez (patlama/clipping olmaz)
+            float range = 1f - Threshold;
+            float limited = Threshold + range * MathF.Tanh((abs - Threshold) / range);
+            return MathF.CopySign(MathF.Min(limited, 1f), x);
+        }
+    }
+
     public class AudioEngine : IDisposable
     {
-        // _wasapiOut ve _audioReader'a erişimi sıraya sokar (UI iş parçacığı ile aygıt değiştirme iş parçacığı çakışmasın)
+        public const float MinGainDb = 0f;
+        public const float MaxGainDb = 6f;
+
+        // _wasapiOut, _audioReader ve _gain'e erişimi sıraya sokar (UI iş parçacığı ile arka plan işleri çakışmasın)
         private readonly object _sync = new object();
 
         private WasapiOut? _wasapiOut;
         private WaveStream? _audioReader;
+        private GainSampleProvider? _gain;
+        private float _gainDb;
         private TimeSpan _lastPosition;
         private bool _isDisposed;
 
@@ -28,6 +98,35 @@ namespace YtmHybridClient
 
         /// <summary>Çıkış aygıtının kimliği (MMDevice.ID). Boş ise sistem varsayılanı kullanılır.</summary>
         public string DeviceId { get; set; } = "";
+
+        /// <summary>
+        /// Ses takviyesi (dB). 0 = takviye yok ve akış doğrudan çıkışa verilir (bit-perfect, Yerel FLAC için).
+        /// Sonraki akışlarda kullanılır; çalan akışa da anında uygulanır.
+        /// </summary>
+        public float GainDb
+        {
+            get => _gainDb;
+            set
+            {
+                float clamped = float.IsNaN(value) ? 0f : Math.Clamp(value, MinGainDb, MaxGainDb);
+                bool needsRebuild;
+
+                lock (_sync)
+                {
+                    _gainDb = clamped;
+                    if (_gain != null)
+                        _gain.Gain = DbToLinear(clamped);
+
+                    // Akış takviyesiz (doğrudan) açılmıştı ve şimdi takviye isteniyor: çıkışı zincirle yeniden kur
+                    needsRebuild = _gain == null && clamped > 0f && _wasapiOut != null;
+                }
+
+                if (needsRebuild)
+                    _ = Task.Run(SwitchOutputToCurrentDevice);
+            }
+        }
+
+        public static float DbToLinear(float db) => MathF.Pow(10f, db / 20f);
 
         /// <summary>Etkin ses çıkış aygıtlarını listeler. İlk eleman "Sistem varsayılanı"dır.</summary>
         public static List<AudioDeviceInfo> GetOutputDevices()
@@ -86,6 +185,21 @@ namespace YtmHybridClient
             return new WasapiOut(mode, latency: 100);
         }
 
+        // Çıkışa verilecek kaynağı kurar: takviye varsa kazanç + sınırlayıcı zinciri (16 bit), yoksa doğrudan reader
+        private IWaveProvider BuildSource(WaveStream reader, out GainSampleProvider? gain)
+        {
+            float gainDb = _gainDb;
+            if (gainDb <= 0f)
+            {
+                gain = null;
+                return reader;
+            }
+
+            gain = new GainSampleProvider(reader.ToSampleProvider(), DbToLinear(gainDb));
+            Debug.WriteLine($"[AudioEngine] Ses takviyesi: +{gainDb:0.0} dB");
+            return new SampleToWaveProvider16(gain);
+        }
+
         public bool IsPlaying
         {
             get { lock (_sync) { return _wasapiOut?.PlaybackState == PlaybackState.Playing; } }
@@ -123,7 +237,7 @@ namespace YtmHybridClient
             Stop();
 
             var playbackTask = Task.Run(() => CreateAndStartPlayback(streamUrlOrPath, startAt));
-            (WasapiOut Output, WaveStream Reader) playback;
+            (WasapiOut Output, WaveStream Reader, GainSampleProvider? Gain) playback;
             try
             {
                 playback = await playbackTask.WaitAsync(timeout);
@@ -150,6 +264,7 @@ namespace YtmHybridClient
 
                 _audioReader = playback.Reader;
                 _wasapiOut = playback.Output;
+                _gain = playback.Gain;
                 _lastPosition = startAt;
             }
 
@@ -157,7 +272,7 @@ namespace YtmHybridClient
             return IsPlaying;
         }
 
-        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt)
+        private (WasapiOut Output, WaveStream Reader, GainSampleProvider? Gain) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt)
         {
             if (!UseExclusive)
                 return CreateAndStartPlayback(streamUrlOrPath, startAt, AudioClientShareMode.Shared);
@@ -173,7 +288,7 @@ namespace YtmHybridClient
             }
         }
 
-        private (WasapiOut Output, WaveStream Reader) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt, AudioClientShareMode mode)
+        private (WasapiOut Output, WaveStream Reader, GainSampleProvider? Gain) CreateAndStartPlayback(string streamUrlOrPath, TimeSpan startAt, AudioClientShareMode mode)
         {
             WaveStream? reader = null;
             WasapiOut? output = null;
@@ -182,7 +297,7 @@ namespace YtmHybridClient
                 Debug.WriteLine($"[AudioEngine] WASAPI modu: {mode}");
                 reader = new MediaFoundationReader(streamUrlOrPath);
                 output = CreateOutput(mode);
-                output.Init(reader);
+                output.Init(BuildSource(reader, out var gain));
 
                 if (startAt > TimeSpan.Zero)
                 {
@@ -192,7 +307,7 @@ namespace YtmHybridClient
 
                 output.PlaybackStopped += OnPlaybackStopped;
                 output.Play();
-                return (output, reader);
+                return (output, reader, gain);
             }
             catch
             {
@@ -207,7 +322,7 @@ namespace YtmHybridClient
             }
         }
 
-        private async Task DisposePlaybackWhenReadyAsync(Task<(WasapiOut Output, WaveStream Reader)> playbackTask)
+        private async Task DisposePlaybackWhenReadyAsync(Task<(WasapiOut Output, WaveStream Reader, GainSampleProvider? Gain)> playbackTask)
         {
             try
             {
@@ -220,7 +335,7 @@ namespace YtmHybridClient
             }
         }
 
-        private void DisposePlayback((WasapiOut Output, WaveStream Reader) playback)
+        private void DisposePlayback((WasapiOut Output, WaveStream Reader, GainSampleProvider? Gain) playback)
         {
             playback.Output.PlaybackStopped -= OnPlaybackStopped;
             playback.Output.Dispose();
@@ -243,6 +358,7 @@ namespace YtmHybridClient
             return Task.Run(SwitchOutputToCurrentDevice);
         }
 
+        // Çıkışı, mevcut DeviceId / UseExclusive / GainDb ayarlarıyla aynı reader üzerinde yeniden kurar
         private bool SwitchOutputToCurrentDevice()
         {
             lock (_sync)
@@ -266,10 +382,10 @@ namespace YtmHybridClient
                 ReadPosition();   // son bilinen konumu sakla (yedek yol için)
 
                 // 2) Aynı reader ile yeni aygıtta başlat
-                WasapiOut newOutput;
+                (WasapiOut Output, GainSampleProvider? Gain) opened;
                 try
                 {
-                    newOutput = OpenOutputForReader(reader);
+                    opened = OpenOutputForReader(reader);
                 }
                 catch (Exception ex)
                 {
@@ -277,16 +393,17 @@ namespace YtmHybridClient
                     return false;   // reader açık kalır; çağıran yedek yolu dener ya da Stop() temizler
                 }
 
-                _wasapiOut = newOutput;
+                _wasapiOut = opened.Output;
+                _gain = opened.Gain;
                 if (wasPaused)
-                    newOutput.Pause();
+                    opened.Output.Pause();
 
-                Debug.WriteLine($"[AudioEngine] Çıkış aygıtı değiştirildi (konum: {_lastPosition:mm\\:ss}, duraklatılmış: {wasPaused})");
+                Debug.WriteLine($"[AudioEngine] Çıkış yeniden kuruldu (konum: {_lastPosition:mm\\:ss}, duraklatılmış: {wasPaused})");
                 return true;
             }
         }
 
-        private WasapiOut OpenOutputForReader(WaveStream reader)
+        private (WasapiOut Output, GainSampleProvider? Gain) OpenOutputForReader(WaveStream reader)
         {
             if (UseExclusive)
             {
@@ -303,17 +420,17 @@ namespace YtmHybridClient
             return OpenOutputForReader(reader, AudioClientShareMode.Shared);
         }
 
-        private WasapiOut OpenOutputForReader(WaveStream reader, AudioClientShareMode mode)
+        private (WasapiOut Output, GainSampleProvider? Gain) OpenOutputForReader(WaveStream reader, AudioClientShareMode mode)
         {
             WasapiOut? output = null;
             try
             {
                 Debug.WriteLine($"[AudioEngine] WASAPI modu: {mode}");
                 output = CreateOutput(mode);
-                output.Init(reader);
+                output.Init(BuildSource(reader, out var gain));
                 output.PlaybackStopped += OnPlaybackStopped;
                 output.Play();
-                return output;
+                return (output, gain);
             }
             catch
             {
@@ -368,6 +485,7 @@ namespace YtmHybridClient
                     _audioReader = null;
                 }
 
+                _gain = null;
                 _lastPosition = TimeSpan.Zero;
             }
         }
