@@ -6,10 +6,9 @@ namespace YtmHybridClient
 {
     public class AppSettings
     {
-        public string LocalFlacFolder { get; set; } = @"C:\Music\FLAC";
-        public string JamendoClientId { get; set; } = "6a4bec36";
-        public bool EnableSmartFallback { get; set; } = true;
-        public bool UseWasapiExclusive { get; set; } = true;
+        public string AudioDevice { get; set; } = "";
+        public string Language { get; set; } = "tr"; // "tr" veya "en"
+        public bool MinimizeToTray { get; set; } = false;
 
         private static readonly string FilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -32,7 +31,7 @@ namespace YtmHybridClient
             return new AppSettings();
         }
 
-        public void Save()
+        public bool Save()
         {
             try
             {
@@ -44,10 +43,12 @@ namespace YtmHybridClient
 
                 string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(FilePath, json);
+                return true;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Settings] Kaydetme hatası: {ex.Message}");
+                return false;
             }
         }
     }

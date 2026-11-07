@@ -1,18 +1,56 @@
-﻿## Visual Studio & C# Derleme Çıktıları
-bin/
-obj/
+## Visual Studio / .NET
+
+# Derleme çıktıları
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+artifacts/
+
+# Visual Studio
 .vs/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+*.userprefs
+launchSettings.json.user
 
-## WebView2 Kullanıcı Profil Klasörü (Oturum Çerezleri & Çerez Hash'leri)
-**/WebView2Profile/
+# Test ve analiz
+TestResults/
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
 
-## Yerel Yapılandırma
-appsettings.json
-
-## NuGet & Paket Dosyaları
+# NuGet
 *.nupkg
-*.appx
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Log ve geçici dosyalar
+*.log
+*.tmp
+*.bak
+*~
+~$*
+
+# Yayın paketleri (zip'leri Releases bölümüne yükle, depoya koyma)
+*.zip
+*.7z
+
+# Diğer editörler
+.idea/
+.vscode/
+
+# İşletim sistemi
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Yerel ayarlar ve gizli bilgiler (asla commit etme)
+appsettings.json
+appsettings.*.json
+*.secrets.json
+secrets.json
+.env

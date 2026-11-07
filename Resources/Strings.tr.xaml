@@ -1,0 +1,21 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- MainWindow Strings -->
+    <sys:String x:Key="NavAppTitle">YTM Hybrid Client</sys:String>
+    <sys:String x:Key="NavBtnSettings">⚙ Ayarlar</sys:String>
+    <sys:String x:Key="StatusScriptReady">⚡ Script hazır</sys:String>
+    <sys:String x:Key="StatusJsError">⚠ JS hatası</sys:String>
+
+    <!-- SettingsWindow Strings -->
+    <sys:String x:Key="SettingsTitle">Ayarlar</sys:String>
+    <sys:String x:Key="SettingsHeader">Tercihler &amp; Ayarlar</sys:String>
+    <sys:String x:Key="Language">Uygulama Dili</sys:String>
+    <sys:String x:Key="AudioDevice">Ses Çıkış Aygıtı</sys:String>
+    <sys:String x:Key="AudioDeviceNote">Seçilen ses aygıtı YouTube Music'in WebView2 ses çıkışına uygulanır.</sys:String>
+    <sys:String x:Key="MinimizeToTray">Simge durumuna küçültüldüğünde / kapatıldığında sistem tepsisine gizle</sys:String>
+    <sys:String x:Key="Cancel">İptal</sys:String>
+    <sys:String x:Key="Save">Kaydet</sys:String>
+    <sys:String x:Key="SaveAndRestart">Kaydet ve Yeniden Başlat</sys:String>
+    <sys:String x:Key="SaveAndRestartTip">Ayarları kaydeder ve değişikliklerin tam uygulanması için uygulamayı baştan başlatır.</sys:String>
+</ResourceDictionary>

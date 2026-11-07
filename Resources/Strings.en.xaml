@@ -1,0 +1,21 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- MainWindow Strings -->
+    <sys:String x:Key="NavAppTitle">YTM Hybrid Client</sys:String>
+    <sys:String x:Key="NavBtnSettings">⚙ Settings</sys:String>
+    <sys:String x:Key="StatusScriptReady">⚡ Script ready</sys:String>
+    <sys:String x:Key="StatusJsError">⚠ JS error</sys:String>
+
+    <!-- SettingsWindow Strings -->
+    <sys:String x:Key="SettingsTitle">Settings</sys:String>
+    <sys:String x:Key="SettingsHeader">Preferences &amp; Settings</sys:String>
+    <sys:String x:Key="Language">Application Language</sys:String>
+    <sys:String x:Key="AudioDevice">Audio Output Device</sys:String>
+    <sys:String x:Key="AudioDeviceNote">The selected device is applied to YouTube Music's WebView2 audio output.</sys:String>
+    <sys:String x:Key="MinimizeToTray">Hide to the system tray when minimized or closed</sys:String>
+    <sys:String x:Key="Cancel">Cancel</sys:String>
+    <sys:String x:Key="Save">Save</sys:String>
+    <sys:String x:Key="SaveAndRestart">Save &amp; Restart</sys:String>
+    <sys:String x:Key="SaveAndRestartTip">Saves all settings and restarts the application to ensure all changes take full effect.</sys:String>
+</ResourceDictionary>

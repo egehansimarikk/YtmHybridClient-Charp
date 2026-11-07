@@ -1,10 +1,10 @@
-﻿<Window x:Class="YtmHybridClient.MainWindow"
+<Window x:Class="YtmHybridClient.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="YTM Lossless Hybrid Client" Height="760" Width="1280"
-        WindowStartupLocation="CenterScreen"
-        Icon="Gemini_Generated_Image_asxgj7asxgj7asxg.ico"
+        Title="YTM Hybrid Client" Height="760" Width="1280"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
+        Icon="YtmHybridClientLogo.ico"
         Background="#0F0F0F">
     <Grid>
         <Grid.RowDefinitions>
@@ -14,15 +14,37 @@
 
         <!-- Üst Kontrol Çubuğu -->
         <Grid Grid.Row="0" Background="#181818" Height="40">
+            <!-- Sol Üst Logo ve Başlık -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                <!-- Sol Üst Logo -->
-                <Image Source="Gemini_Generated_Image_asxgj7asxgj7asxg.ico" Width="26" Height="26" Margin="0,0,10,0"/>
-                <TextBlock Text="YTM Lossless Client" Foreground="#CCCCCC" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold"/>
+                <Image Source="YtmHybridClientLogo.ico" Width="26" Height="26" Margin="0,0,10,0"/>
+                <TextBlock Text="YTM Hybrid Client" Foreground="#CCCCCC" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold"/>
             </StackPanel>
 
-            <!-- Ayarlar Butonu -->
-            <Button Content="⚙ Ayarlar" HorizontalAlignment="Right" Margin="0,0,10,0" Padding="12,5" 
-                    Background="#282828" Foreground="White" BorderThickness="0" Cursor="Hand" Click="BtnSettings_Click"/>
+            <!-- Sağ Üst Kontrol Alanı (Rozet + Ayarlar Butonu) -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+
+                <!-- Aktif Ses Kaynağı Rozeti (Status Badge) -->
+                <Border x:Name="BadgeSource" 
+                        Background="#888888" 
+                        CornerRadius="12" 
+                        Padding="10,4" 
+                        Margin="0,0,10,0" 
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtAudioSource" 
+                               Text="▶ YouTube Music" 
+                               Foreground="White" 
+                               FontSize="12" 
+                               FontWeight="Bold"/>
+                </Border>
+
+                <Button x:Name="BtnMiniPlayer" Content="🖼️ Mini Player" Padding="12,5" Margin="0,0,10,0"
+                        Background="#FF0055" Foreground="White" BorderThickness="0" Cursor="Hand"
+                        Click="BtnMiniPlayer_Click"/>
+
+                <!-- Ayarlar Butonu -->
+                <Button Content="⚙ Ayarlar" Padding="12,5" 
+                        Background="#282828" Foreground="White" BorderThickness="0" Cursor="Hand" Click="BtnSettings_Click"/>
+            </StackPanel>
         </Grid>
 
         <!-- WebBrowser -->
