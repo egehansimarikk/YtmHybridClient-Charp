@@ -202,6 +202,12 @@ See the [LICENSE](LICENSE) file for the complete license text.
 # YTM Hybrid Client
 
 <p align="center">
+  <img src="ytmhybridlogo.png" alt="YTM Hybrid Client Logo" width="120" height="120">
+</p>
+
+<h1 align="center">YTM Hybrid Client</h1>
+
+<p align="center">
   <strong>Windows İçin Modern Bir YouTube Music Masaüstü Deneyimi</strong>
 </p>
 
@@ -213,7 +219,6 @@ See the [LICENSE](LICENSE) file for the complete license text.
     <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT Lisansı">
   </a>
 </p>
-
 **YTM Hybrid Client**, YouTube Music'i modern ve sade bir Windows masaüstü ortamına taşıyan açık kaynaklı bir masaüstü uygulamasıdır.
 
 C#, WPF ve .NET 9 kullanılarak geliştirilen uygulama; Microsoft WebView2 ile entegre edilmiş YouTube Music deneyimi, Windows ses çıkış cihazı seçimi, Discord Rich Presence, otomatik güncelleme ve masaüstü entegrasyonu gibi özellikler sunar.
