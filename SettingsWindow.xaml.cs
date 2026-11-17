@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ namespace YtmHybridClient
             CurrentSettings = settings ?? new AppSettings();
             _initialLanguage = CurrentSettings.Language ?? "tr";
             ChkMinimizeToTray.IsChecked = CurrentSettings.MinimizeToTray;
+            ChkEnableDiscordRpc.IsChecked = CurrentSettings.EnableDiscordRpc;
 
             var devices = GetAudioOutputDevices();
             CmbAudioDevice.ItemsSource = devices;
@@ -40,9 +42,6 @@ namespace YtmHybridClient
             _isInitialized = true;
         }
 
-        /// <summary>
-        /// Dil değiştirildiğinde anlık (live preview) olarak arayüze yansıtır.
-        /// </summary>
         private void CmbLanguage_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -88,6 +87,7 @@ namespace YtmHybridClient
             string selectedDeviceName = SelectedDeviceName;
             CurrentSettings.AudioDevice = selectedDeviceName;
             CurrentSettings.MinimizeToTray = ChkMinimizeToTray.IsChecked ?? false;
+            CurrentSettings.EnableDiscordRpc = ChkEnableDiscordRpc.IsChecked ?? true;
 
             if (CmbLanguage.SelectedItem is ComboBoxItem langItem)
                 CurrentSettings.Language = langItem.Tag?.ToString() ?? langItem.Content?.ToString() ?? "tr";
@@ -138,9 +138,6 @@ namespace YtmHybridClient
             Close();
         }
 
-        /// <summary>
-        /// Kaydetmeden kapatıldığında dil önizlemesini geri alır.
-        /// </summary>
         private void Window_Closing(object sender, CancelEventArgs e)
         {
             if (!_isSaved)
@@ -150,7 +147,6 @@ namespace YtmHybridClient
             }
         }
 
-        // ComboBox açıldığında mevcut ayardaki değerin seçili gelmesini sağlayan yardımcı metod
         private static void SetComboBoxSelection(ComboBox comboBox, string? value)
         {
             if (string.IsNullOrEmpty(value)) return;

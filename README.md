@@ -1,114 +1,397 @@
-# YTM Lossless Hybrid Client
+# YTM Hybrid Client
 
-A Windows desktop client for YouTube Music that can play a track from another audio source
-(Jamendo, Audius, SoundCloud, your own FLAC files) when a match is found, and falls back to YouTube Music otherwise.
-A badge in the top bar always shows where the sound is coming from.
+<p align="center">
+  <strong>A Modern YouTube Music Desktop Experience for Windows</strong>
+</p>
 
-🇹🇷 [Türkçe README](README.tr.md)
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v1.6.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet" alt=".NET 9">
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License">
+  </a>
+</p>
 
-## Features
+**YTM Hybrid Client** is an open-source Windows desktop application that brings YouTube Music into a clean, modern desktop environment.
 
-- YouTube Music in an embedded WebView2 browser (your own login, your own library)
-- Detects track changes and looks for the same song in other sources
-- Audio sources: **Jamendo**, **Audius**, **SoundCloud**, **Local FLAC**, **JioSaavn** (experimental, see below)
-- Source badge: `🔍 Searching`, `⏳ opening`, `🎵 <source>`, `▶ YouTube Music`, `🔇 lossless not found`
-- **Quick source toggle**: click the badge or 🔄 to cycle the current song through Jamendo → Audius → SoundCloud → YouTube Music
-- **Strict matching** so the wrong song is not played
-- **WASAPI Exclusive / Shared** output, with automatic fallback to Shared
-- **Audio output device** selection
-- **External source gain boost** (+1.5 dB by default) with a soft limiter, so Jamendo, Audius and SoundCloud sound as loud as YouTube Music
-- **Smart Fallback**: play YouTube Music's own audio when nothing better is found (or stay silent)
-- Turkish and English interface
+Built with C#, WPF, and .NET 9, it provides an embedded YouTube Music experience powered by Microsoft WebView2, selectable Windows audio output devices, Discord Rich Presence, automatic updates, and convenient desktop integration.
 
-## Requirements
+## Overview
 
-- Windows 10 or 11
-- [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
-  (already installed on most up-to-date Windows 10/11 systems)
+YTM Hybrid Client transforms the YouTube Music web experience into a dedicated Windows desktop application with a dark-themed WPF interface.
+
+The application uses Microsoft WebView2 to display and run YouTube Music, while NAudio provides audio output device selection and routing.
+
+With additional features such as Discord Rich Presence, GitHub Auto-Updater, Mini Player, and System Tray integration, YTM Hybrid Client offers a convenient desktop listening experience.
+
+## Key Features
+
+### YouTube Music Desktop Experience
+
+- Clean, dark-themed Windows desktop interface.
+- Embedded YouTube Music experience powered by Microsoft WebView2.
+- Access to your YouTube Music account and personal library.
+- Dedicated desktop application experience built with WPF.
+- Active playback status indicator in the top bar.
+
+### Audio Output Device Selection
+
+- Select your preferred Windows audio playback device directly from Settings.
+- Audio device management powered by NAudio.
+- Route application audio to your selected Windows output device.
+- Change your preferred output device through the application's Settings interface.
+
+### Discord Rich Presence
+
+**Introduced in v1.6.0.**
+
+- Displays your current listening activity on Discord.
+- Shows the status *Listening to YTM Hybrid Client*.
+- Displays the current track title and artist name.
+- Shows album artwork.
+- Includes a real-time playback progress bar.
+- Can be enabled or disabled through Settings.
+
+### GitHub Auto-Updater
+
+**Introduced in v1.6.0.**
+
+- Automatically checks GitHub Releases when the application starts.
+- Detects when a newer version is available.
+- Displays an update button in the top bar.
+- Provides a one-click way to start the update process.
+
+### Mini Player & System Tray
+
+- Compact floating Mini Player mode.
+- Open Mini Player directly from the top bar or system tray.
+- Optional minimize-to-tray behavior.
+- Quick media and application controls from the system tray:
+  - Play / Pause
+  - Next Track
+  - Open Settings
+  - Open Mini Player
+  - Exit Application
+
+### Bilingual Interface
+
+- English (`English`)
+- Turkish (`Türkçe`)
+- Switch the application interface language through Settings.
+
+## Screenshots
+
+Screenshots will be added here.
+
+<!-- Add screenshots to docs/screenshots/ and uncomment the corresponding images.
+
+### Main Window
+![Main Window](docs/screenshots/main-window.png)
+
+### Mini Player
+![Mini Player](docs/screenshots/mini-player.png)
+
+### Settings
+![Settings](docs/screenshots/settings.png)
+
+### Discord Rich Presence
+![Discord Rich Presence](docs/screenshots/discord-rich-presence.png)
+
+-->
 
 ## Installation
 
-1. Download the latest installer (`.exe`) from the [Releases](../../releases) page and run it.
-2. Launch the app after the installation.
-3. Sign in to YouTube Music in the app window.
-4. Open **Settings** and choose your sources.
+### Windows Installer
 
-## Build from source
+YTM Hybrid Client is distributed as a Windows installer built with **Inno Setup**.
 
-```powershell
-git clone https://github.com/egehansimarikk/YtmHybridClient
-cd YtmHybridClient
+1. Visit the [GitHub Releases](https://github.com/egehansimarikk/YtmHybridClient-Charp/releases) page.
+2. Download `YTM_Hybrid_Client_v1.6.0_Setup.exe`.
+3. Run the installer and follow the installation instructions.
+4. Launch YTM Hybrid Client.
+5. Sign in to your YouTube Music account through the embedded browser.
+
+### Requirements
+
+- Windows 10 or Windows 11 (64-bit).
+- .NET 9 Desktop Runtime.
+- Microsoft Edge WebView2 Runtime.
+
+WebView2 Runtime is already available on most up-to-date Windows installations. Install it separately if it is missing.
+
+## Building from Source
+
+### Prerequisites
+
+- Windows 10 or Windows 11.
+- .NET 9 SDK.
+- Visual Studio 2022 (17.12 or later).
+- Visual Studio **.NET desktop development** workload.
+- Git.
+
+### Using the .NET CLI
+
+Clone the repository:
+
+```bash
+git clone https://github.com/egehansimarikk/YtmHybridClient-Charp.git
+```
+
+Navigate to the project directory:
+
+```bash
+cd YtmHybridClient-Charp
+```
+
+Restore dependencies:
+
+```bash
+dotnet restore
+```
+
+Build the application:
+
+```bash
 dotnet build -c Release
 ```
 
-Or open the solution in Visual Studio 2022 or newer (.NET 9 SDK) and build in **Release**.
+### Using Visual Studio
 
-## Audio sources
+1. Clone or download the repository.
+2. Open the solution file in Visual Studio 2022.
+3. Make sure the .NET 9 SDK and .NET desktop development workload are installed.
+4. Select the **Release** configuration.
+5. Build the solution.
 
-| Source | What it is | Notes |
-|---|---|---|
-| **Jamendo** | Free music released under Creative Commons licenses | Needs a free API Client ID (see below). Independent artists, small catalog |
-| **Audius** | Open music platform with artist-uploaded tracks | No API key. Mostly electronic, hip-hop and independent music |
-| **SoundCloud** | Music streaming platform | Unofficial web API, no account needed. Only fully playable tracks with a direct MP3 stream are used (typically 128 kbps, **not** lossless). Can break when SoundCloud changes its site |
-| **Local FLAC** | FLAC files in a folder you choose | The only way to get true lossless playback of your favorite songs |
-| **JioSaavn** | Unofficial community APIs | **Unreliable.** Public instances are rate-limited or offline; not recommended |
+The project targets:
 
-> **Expect a lot of "YouTube Music".** Jamendo and Audius are independent catalogs. Most mainstream
-> songs are not there and will play from YouTube Music. That is by design.
+```xml
+net9.0-windows10.0.17763.0
+```
 
-### Jamendo Client ID
+## Tech Stack
 
-Create a free application at [developer.jamendo.com](https://developer.jamendo.com/) and paste your
-Client ID into **Settings → Jamendo API Client ID**. Using your own ID avoids shared rate limits.
-
-## Settings
-
-| Setting | Description |
-|---|---|
-| Language | Turkish or English |
-| Primary / Secondary source | Order in which sources are tried |
-| External source gain | Boost for Jamendo, Audius and SoundCloud in dB (0 = off, default +1.5). Not applied to Local FLAC. Applied live while you move the slider |
-| Audio output device | Output device for external sources. *System default* if empty |
-| Local FLAC folder | Folder searched by the Local FLAC source |
-| Jamendo API Client ID | Your Jamendo API key |
-| Strict matching | Require title **and** artist to match. Turn off to get more matches at the risk of wrong songs |
-| WASAPI Exclusive | Bit-perfect output that locks the device. Falls back to Shared if it fails |
-| Smart Fallback | Play YouTube Music's audio when no lossless match is found. If off, those songs stay silent |
-
-Settings are stored in `%AppData%\YtmHybridClient\appsettings.json`.
-The browser profile (login, cookies) is stored in `%AppData%\YtmHybridClient\WebView2Profile`.
-
-Changing the output device or WASAPI mode is applied right away to a song playing from an external source. Audio from the
-"YouTube Music" fallback always uses the Windows default device.
-
-## Troubleshooting
-
-- **Badge stays on "Searching..."** – Update to v1.2.0 or newer.
-- **Source never shows up** – Check that the song exists in that catalog. Try turning Strict matching off.
-- **No sound at all** – Smart Fallback may be off, or the selected output device is in use by another
-  application in Exclusive mode. Try turning Exclusive off.
-- **Output device does not change** – The device setting only applies to songs played by this app
-  (Jamendo, Audius, SoundCloud, Local FLAC). Songs with the "▶ YouTube Music" badge play through the
-  browser component and use the Windows default device. To send them elsewhere, open Windows
-  **Settings → System → Sound → Volume mixer** and choose the output device for this app / *Microsoft Edge WebView2*.
-- **Logs** – When running a **Debug** build from Visual Studio, the Output window shows lines such as
-  `[Resolver]`, `[Jamendo]`, `[Audius]`, `[SoundCloud]`, `[AudioEngine]` that explain every decision.
-  Release builds do not write these logs.
-
-## Disclaimer
-
-- This project is **not affiliated with** Google, YouTube, Jamendo, Audius or JioSaavn.
-- The app hides and filters ads on the YouTube Music page. This may violate YouTube's Terms of Service.
-  Use it at your own risk.
-- Jamendo tracks are released under Creative Commons licenses; check each track's license before using
-  them for anything beyond personal listening. Audius asks apps to credit artists.
-- The SoundCloud source uses SoundCloud's unofficial web API with a client ID read from the public website.
-  This is not covered by SoundCloud's API terms and may stop working at any time. Previews and restricted
-  tracks are skipped.
-- The JioSaavn source relies on unofficial APIs and may use content without a license. It is kept only for
-  compatibility and is not recommended.
+| Technology          | Purpose                                           |
+| ------------------- | ------------------------------------------------- |
+| C#                  | Main programming language                         |
+| WPF                 | Windows desktop user interface                    |
+| .NET 9              | Application framework                             |
+| Microsoft WebView2  | Embedded YouTube Music integration                |
+| NAudio              | Windows audio output device selection and routing |
+| DiscordRichPresence | Discord Rich Presence integration                 |
+| GitHub Releases     | Application update distribution                   |
+| Inno Setup          | Windows installer packaging                       |
 
 ## License
 
-Add a `LICENSE` file of your choice (for example MIT) before publishing.
+This project is licensed under the **MIT License**.
+
+See the [LICENSE](LICENSE) file for the complete license text.
+
+## Disclaimer
+
+- YTM Hybrid Client is an unofficial third-party application and is not affiliated with, endorsed by, or sponsored by Google or YouTube.
+- YouTube Music functionality depends on the availability and behavior of the YouTube Music website.
+- Discord Rich Presence requires Discord to be running and available.
+- Users are responsible for complying with the terms and conditions of the services they use.
+
+---
+
+# YTM Hybrid Client
+
+<p align="center">
+  <strong>Windows İçin Modern Bir YouTube Music Masaüstü Deneyimi</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v1.6.0-blue.svg" alt="Sürüm">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D6?logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet" alt=".NET 9">
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT Lisansı">
+  </a>
+</p>
+
+**YTM Hybrid Client**, YouTube Music'i modern ve sade bir Windows masaüstü ortamına taşıyan açık kaynaklı bir masaüstü uygulamasıdır.
+
+C#, WPF ve .NET 9 kullanılarak geliştirilen uygulama; Microsoft WebView2 ile entegre edilmiş YouTube Music deneyimi, Windows ses çıkış cihazı seçimi, Discord Rich Presence, otomatik güncelleme ve masaüstü entegrasyonu gibi özellikler sunar.
+
+## Genel Bakış
+
+YTM Hybrid Client, YouTube Music web deneyimini koyu temalı bir WPF arayüzüyle bağımsız bir Windows masaüstü uygulamasına dönüştürür.
+
+Uygulama, YouTube Music'i görüntülemek ve çalıştırmak için Microsoft WebView2 kullanırken NAudio aracılığıyla Windows ses çıkış cihazlarının seçilmesini ve ses yönlendirmesini sağlar.
+
+Discord Rich Presence, GitHub Auto-Updater, Mini Player ve Sistem Tepsisi entegrasyonu gibi özelliklerle kullanışlı bir masaüstü müzik deneyimi sunar.
+
+## Temel Özellikler
+
+### YouTube Music Masaüstü Deneyimi
+
+- Sade ve koyu temalı Windows masaüstü arayüzü.
+- Microsoft WebView2 ile entegre edilmiş YouTube Music deneyimi.
+- YouTube Music hesabına ve kişisel müzik kitaplığına erişim.
+- WPF ile geliştirilmiş bağımsız masaüstü uygulaması.
+- Üst araç çubuğunda aktif oynatma durumunu gösteren durum göstergesi.
+
+### Ses Çıkış Cihazı Seçimi
+
+- Tercih edilen Windows ses çıkış cihazını doğrudan Ayarlar üzerinden seçebilme.
+- NAudio destekli ses cihazı yönetimi.
+- Uygulama sesini seçilen Windows ses çıkış cihazına yönlendirme.
+- Tercih edilen ses çıkış cihazını uygulamanın Ayarlar arayüzünden değiştirebilme.
+
+### Discord Rich Presence
+
+**v1.6.0 ile eklendi.**
+
+- Discord üzerinde mevcut dinleme etkinliğini gösterir.
+- *Listening to YTM Hybrid Client* durumunu görüntüler.
+- Çalan parçanın adını ve sanatçı bilgisini gösterir.
+- Albüm kapağını görüntüler.
+- Gerçek zamanlı oynatma ilerleme çubuğu sunar.
+- Ayarlar üzerinden etkinleştirilebilir veya devre dışı bırakılabilir.
+
+### GitHub Otomatik Güncelleyici
+
+**v1.6.0 ile eklendi.**
+
+- Uygulama açıldığında GitHub Releases üzerinden yeni sürümleri otomatik olarak kontrol eder.
+- Yeni bir sürüm mevcut olduğunda algılar.
+- Üst araç çubuğunda güncelleme butonu gösterir.
+- Tek tıklamayla güncelleme sürecini başlatmayı sağlar.
+
+### Mini Player ve Sistem Tepsisi
+
+- Kompakt ve kayan Mini Player modu.
+- Üst araç çubuğundan veya sistem tepsisinden Mini Player'ı açabilme.
+- İsteğe bağlı olarak uygulamayı sistem tepsisine küçültme.
+- Sistem tepsisinden hızlı medya ve uygulama kontrolleri:
+  - Oynat / Duraklat
+  - Sonraki Parça
+  - Ayarları Aç
+  - Mini Player'ı Aç
+  - Uygulamadan Çık
+
+### İki Dilli Arayüz
+
+- İngilizce (`English`)
+- Türkçe (`Türkçe`)
+- Uygulama dili Ayarlar üzerinden değiştirilebilir.
+
+## Ekran Görüntüleri
+
+Ekran görüntüleri daha sonra eklenecektir.
+
+<!-- Ekran görüntülerini docs/screenshots/ klasörüne ekleyip aşağıdaki görsellerin yorum satırlarını kaldırabilirsiniz.
+
+### Ana Pencere
+![Ana Pencere](docs/screenshots/main-window.png)
+
+### Mini Player
+![Mini Player](docs/screenshots/mini-player.png)
+
+### Ayarlar
+![Ayarlar](docs/screenshots/settings.png)
+
+### Discord Rich Presence
+![Discord Rich Presence](docs/screenshots/discord-rich-presence.png)
+
+-->
+
+## Kurulum
+
+### Windows Kurulum Dosyası
+
+YTM Hybrid Client, **Inno Setup** kullanılarak oluşturulmuş bir Windows kurulum dosyası üzerinden dağıtılır.
+
+1. [GitHub Releases](https://github.com/egehansimarikk/YtmHybridClient-Charp/releases) sayfasını açın.
+2. `YTM_Hybrid_Client_v1.6.0_Setup.exe` dosyasını indirin.
+3. Kurulum dosyasını çalıştırın ve kurulum adımlarını takip edin.
+4. YTM Hybrid Client uygulamasını başlatın.
+5. Uygulama içerisindeki tarayıcı üzerinden YouTube Music hesabınıza giriş yapın.
+
+### Gereksinimler
+
+- Windows 10 veya Windows 11 (64-bit).
+- .NET 9 Desktop Runtime.
+- Microsoft Edge WebView2 Runtime.
+
+WebView2 Runtime, güncel Windows kurulumlarının çoğunda zaten bulunmaktadır. Sistemde bulunmuyorsa ayrıca yüklenmesi gerekir.
+
+## Kaynak Koddan Derleme
+
+### Gereksinimler
+
+- Windows 10 veya Windows 11.
+- .NET 9 SDK.
+- Visual Studio 2022 (17.12 veya üzeri).
+- Visual Studio **.NET masaüstü geliştirme** iş yükü.
+- Git.
+
+### .NET CLI ile
+
+Depoyu klonlayın:
+
+```bash
+git clone https://github.com/egehansimarikk/YtmHybridClient-Charp.git
+```
+
+Proje klasörüne girin:
+
+```bash
+cd YtmHybridClient-Charp
+```
+
+Bağımlılıkları geri yükleyin:
+
+```bash
+dotnet restore
+```
+
+Uygulamayı derleyin:
+
+```bash
+dotnet build -c Release
+```
+
+### Visual Studio ile
+
+1. Depoyu klonlayın veya indirin.
+2. Çözüm dosyasını Visual Studio 2022 ile açın.
+3. .NET 9 SDK ve .NET masaüstü geliştirme iş yükünün yüklü olduğundan emin olun.
+4. **Release** yapılandırmasını seçin.
+5. Çözümü derleyin.
+
+Projenin hedef framework değeri:
+
+```xml
+net9.0-windows10.0.17763.0
+```
+
+## Teknoloji Yığını
+
+| Teknoloji           | Kullanım Amacı                                 |
+| ------------------- | ---------------------------------------------- |
+| C#                  | Ana programlama dili                           |
+| WPF                 | Windows masaüstü arayüzü                       |
+| .NET 9              | Uygulama framework'ü                           |
+| Microsoft WebView2  | YouTube Music entegrasyonu                     |
+| NAudio              | Windows ses çıkış cihazı seçimi ve yönlendirme |
+| DiscordRichPresence | Discord Rich Presence entegrasyonu             |
+| GitHub Releases     | Uygulama güncelleme dağıtımı                   |
+| Inno Setup          | Windows kurulum paketi oluşturma               |
+
+## Lisans
+
+Bu proje **MIT Lisansı** altında yayımlanmaktadır.
+
+Lisansın tam metni için [LICENSE](LICENSE) dosyasına göz atabilirsiniz.
+
+## Sorumluluk Reddi
+
+- YTM Hybrid Client, Google veya YouTube ile bağlantısı, sponsorluğu veya resmî onayı bulunmayan bağımsız bir üçüncü taraf uygulamasıdır.
+- YouTube Music özellikleri, YouTube Music web sitesinin erişilebilirliğine ve çalışma biçimine bağlıdır.
+- Discord Rich Presence özelliğinin çalışması için Discord uygulamasının çalışır durumda olması gerekir.
+- Kullanıcılar, kullandıkları hizmetlerin hüküm ve koşullarına uymaktan sorumludur.

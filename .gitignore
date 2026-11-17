@@ -1,11 +1,13 @@
 ## Visual Studio / .NET
 
-# Derleme çıktıları
+# Derleme ve kurulum çıktıları
 [Bb]in/
 [Oo]bj/
 [Oo]ut/
+[Oo]utput/
 publish/
 artifacts/
+installer/
 
 # Visual Studio
 .vs/
@@ -35,9 +37,10 @@ TestResults/
 *~
 ~$*
 
-# Yayın paketleri (zip'leri Releases bölümüne yükle, depoya koyma)
+# Yayın paketleri (kurulum dosyalarını Releases bölümüne yükle, depoya koyma)
 *.zip
 *.7z
+*.exe
 
 # Diğer editörler
 .idea/

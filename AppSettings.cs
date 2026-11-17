@@ -9,6 +9,7 @@ namespace YtmHybridClient
         public string AudioDevice { get; set; } = "";
         public string Language { get; set; } = "tr"; // "tr" veya "en"
         public bool MinimizeToTray { get; set; } = false;
+        public bool EnableDiscordRpc { get; set; } = true;
 
         private static readonly string FilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

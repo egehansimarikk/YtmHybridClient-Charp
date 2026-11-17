@@ -4,7 +4,6 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="YTM Hybrid Client" Height="760" Width="1280"
         WindowStartupLocation="CenterScreen" WindowState="Maximized"
-        Icon="YtmHybridClientLogo.ico"
         Background="#0F0F0F">
     <Grid>
         <Grid.RowDefinitions>
@@ -16,12 +15,18 @@
         <Grid Grid.Row="0" Background="#181818" Height="40">
             <!-- Sol Üst Logo ve Başlık -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                <Image Source="YtmHybridClientLogo.ico" Width="26" Height="26" Margin="0,0,10,0"/>
+                <Image Source="ytmhybridlogo.png" Width="26" Height="26" Margin="0,0,10,0"/>
                 <TextBlock Text="YTM Hybrid Client" Foreground="#CCCCCC" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold"/>
             </StackPanel>
 
-            <!-- Sağ Üst Kontrol Alanı (Rozet + Ayarlar Butonu) -->
+            <!-- Sağ Üst Kontrol Alanı (Güncelleme + Rozet + Mini Player + Ayarlar Butonu) -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+
+                <!-- Yeni Sürüm Bildirim Butonu (Sadece güncelleme varsa görünür) -->
+                <Button x:Name="BtnUpdate" Content="⬆ Güncelleme Mevcut" Visibility="Collapsed"
+                        Padding="12,5" Margin="0,0,10,0"
+                        Background="#00C853" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"
+                        Click="BtnUpdate_Click"/>
 
                 <!-- Aktif Ses Kaynağı Rozeti (Status Badge) -->
                 <Border x:Name="BadgeSource" 

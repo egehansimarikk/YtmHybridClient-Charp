@@ -3,7 +3,6 @@ using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using YtmHybridClient.Helpers;
@@ -16,8 +15,10 @@ namespace YtmHybridClient
 
         private readonly GlobalHotkeyManager _hotkeyManager;
         private readonly SystemTrayManager _trayManager;
+        private readonly DiscordRpcManager _discordRpcManager;
         private readonly DispatcherTimer _miniPlayerProgressTimer;
         private MiniPlayerWindow? _miniPlayerWindow;
+        private UpdateInfo? _availableUpdate;
         private bool _isExplicitExit;
         private bool _isProgressUpdateInFlight;
         private bool _isYtmPlaying;
@@ -32,6 +33,8 @@ namespace YtmHybridClient
         {
             InitializeComponent();
             Current = this;
+
+            _discordRpcManager = new DiscordRpcManager();
 
             _miniPlayerProgressTimer = new DispatcherTimer
             {
@@ -54,14 +57,57 @@ namespace YtmHybridClient
             {
                 _appSettings = AppSettings.Load();
                 LanguageManager.ChangeLanguage(_appSettings.Language);
+                _discordRpcManager.SetEnabled(_appSettings.EnableDiscordRpc);
             }
-
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Init Hata]: {ex.Message}");
             }
 
             InitializeWebViewAsync();
+            _ = CheckGitHubUpdatesOnStartupAsync();
+        }
+
+        private async Task CheckGitHubUpdatesOnStartupAsync()
+        {
+            var update = await GitHubUpdateChecker.CheckForUpdatesAsync();
+            if (update == null) return;
+
+            _availableUpdate = update;
+            RunOnUi(() =>
+            {
+                bool isEn = string.Equals(_appSettings.Language, "en", StringComparison.OrdinalIgnoreCase);
+                BtnUpdate.Content = isEn ? $"⬆ Update ({update.TagName})" : $"⬆ Güncelle ({update.TagName})";
+                BtnUpdate.Visibility = Visibility.Visible;
+            });
+        }
+
+        private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_availableUpdate == null) return;
+
+            bool isEn = string.Equals(_appSettings.Language, "en", StringComparison.OrdinalIgnoreCase);
+            string msg = isEn
+                ? $"A new version ({_availableUpdate.TagName}) is available.\nDo you want to download and install it now?"
+                : $"Yeni bir sürüm ({_availableUpdate.TagName}) mevcut.\nŞimdi indirip kurmak istiyor musunuz?";
+            string caption = isEn ? "Update Available" : "Güncelleme Mevcut";
+
+            if (MessageBox.Show(this, msg, caption, MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+                return;
+
+            BtnUpdate.IsEnabled = false;
+            BtnUpdate.Content = isEn ? "⏳ Downloading..." : "⏳ İndiriliyor...";
+
+            bool started = await GitHubUpdateChecker.DownloadAndRunInstallerAsync(_availableUpdate);
+            if (started)
+            {
+                ExitApplication();
+            }
+            else
+            {
+                BtnUpdate.IsEnabled = true;
+                BtnUpdate.Content = isEn ? $"⬆ Update ({_availableUpdate.TagName})" : $"⬆ Güncelle ({_availableUpdate.TagName})";
+            }
         }
 
         private void BtnMiniPlayer_Click(object sender, RoutedEventArgs e) => ShowMiniPlayer();
@@ -127,9 +173,6 @@ namespace YtmHybridClient
             {
                 string result = await YtmWebView.CoreWebView2.ExecuteScriptAsync(script);
                 bool applied = string.Equals(result, "true", StringComparison.OrdinalIgnoreCase);
-                System.Diagnostics.Debug.WriteLine(applied
-                    ? $"[WebView ses aygıtı] Ses çıkışı '{deviceFriendlyName}' aygıtına yönlendirildi."
-                    : $"[WebView ses aygıtı] '{deviceFriendlyName}' aygıtına yönlendirme başarısız oldu.");
                 return applied;
             }
             catch (Exception ex)
@@ -139,15 +182,10 @@ namespace YtmHybridClient
             }
         }
 
-        // target=_blank / window.open istekleri (paylaş, giriş, harici bağlantılar vb.)
         private void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
         {
-            // Varsayılan davranış ayrı bir WebView2 penceresi açmaktır; onu kendimiz yönetiriz
             e.Handled = true;
-
-            // Kullanıcı tıklaması olmadan açılmaya çalışan pencereleri (reklam/pop-up) engelle
-            if (!e.IsUserInitiated)
-                return;
+            if (!e.IsUserInitiated) return;
 
             if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) ||
                 (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
@@ -157,12 +195,10 @@ namespace YtmHybridClient
             {
                 if (IsHostOrSubdomain(uri.Host, "youtube.com") || IsHostOrSubdomain(uri.Host, "google.com"))
                 {
-                    // YouTube / Google sayfaları aynı pencerede açılır (oturum açma, hesap sayfaları vb.)
                     YtmWebView.CoreWebView2.Navigate(e.Uri);
                 }
                 else
                 {
-                    // Diğer bağlantılar varsayılan tarayıcıda açılır
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri) { UseShellExecute = true });
                 }
             }
@@ -185,8 +221,7 @@ namespace YtmHybridClient
                 string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string userDataFolder = Path.Combine(appData, "YtmHybridClient", "WebView2Profile");
 
-                var options = new CoreWebView2EnvironmentOptions(
-                    "--autoplay-policy=no-user-gesture-required");
+                var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
 
                 await YtmWebView.EnsureCoreWebView2Async(env);
@@ -195,7 +230,7 @@ namespace YtmHybridClient
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
                 YtmWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
                 YtmWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                YtmWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;   // alert/confirm penceresi
+                YtmWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;
                 YtmWebView.CoreWebView2.Settings.IsScriptEnabled = true;
                 YtmWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
 
@@ -300,6 +335,12 @@ namespace YtmHybridClient
                             }
                         }, true);
 
+                        document.addEventListener('seeked', function () {
+                            if (window.chrome && window.chrome.webview) {
+                                window.chrome.webview.postMessage({ type: 'PLAYER_SEEKED' });
+                            }
+                        }, true);
+
                         let lastTrackKey = '';
                         function checkTrackChange() {
                             try {
@@ -315,7 +356,7 @@ namespace YtmHybridClient
                                         title: meta.title || '',
                                         artist: meta.artist || '',
                                         album: meta.album || '',
-                                        artworkUrl: meta.artwork && meta.artwork.length ? meta.artwork[0].src : ''
+                                        artworkUrl: meta.artwork && meta.artwork.length ? meta.artwork[meta.artwork.length - 1].src : ''
                                     };
                                     if (window.chrome && window.chrome.webview) {
                                         window.chrome.webview.postMessage(trackData);
@@ -330,7 +371,6 @@ namespace YtmHybridClient
                             observer.observe(document.documentElement, { childList: true, subtree: true });
                             checkTrackChange();
                         });
-                        // DOM değişmese bile mediaSession değişimini yakalamak için yedek kontrol
                         setInterval(checkTrackChange, 1000);
 
                         try { window.chrome.webview.postMessage({ type: 'JS_READY' }); } catch (_) { }
@@ -342,7 +382,7 @@ namespace YtmHybridClient
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Hata oluştu: {ex.Message}");
+                MessageBox.Show($"Hata oluştu: {ex.Message}");
             }
         }
 
@@ -357,9 +397,7 @@ namespace YtmHybridClient
 
         private async void CoreWebView2_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
         {
-            if (!e.IsSuccess)
-                return;
-
+            if (!e.IsSuccess) return;
             await ApplyAudioDeviceToWebView(AppSettings.Load().AudioDevice);
         }
 
@@ -383,18 +421,16 @@ namespace YtmHybridClient
                         _currentTitle = title;
                         _currentArtist = artist;
                         UpdateMiniPlayerTrack();
+                        await SyncDiscordRpcWithCurrentProgressAsync();
                         await ApplyAudioDeviceToWebView(_appSettings.AudioDevice);
                         await UpdateStatusBadgeAsync("▶ YouTube Music", "#FF0055");
                         break;
 
                     case "JS_READY":
-                        System.Diagnostics.Debug.WriteLine("[JS] Script yüklendi.");
                         await UpdateStatusBadgeAsync("✔ Script hazır", "#455A64");
                         break;
 
                     case "JS_ERROR":
-                        string jsErr = root.TryGetProperty("message", out var jeProp) ? jeProp.GetString() ?? "" : "";
-                        System.Diagnostics.Debug.WriteLine($"[JS HATA]: {jsErr}");
                         await UpdateStatusBadgeAsync("⚠ JS hatası", "#B71C1C");
                         break;
 
@@ -402,6 +438,11 @@ namespace YtmHybridClient
                         string state = root.TryGetProperty("state", out var sProp) ? sProp.GetString() ?? "" : "";
                         _isYtmPlaying = state == "PLAYING";
                         UpdateMiniPlayerPlaybackState();
+                        await SyncDiscordRpcWithCurrentProgressAsync();
+                        break;
+
+                    case "PLAYER_SEEKED":
+                        await SyncDiscordRpcWithCurrentProgressAsync();
                         break;
                 }
             }
@@ -409,6 +450,59 @@ namespace YtmHybridClient
             {
                 System.Diagnostics.Debug.WriteLine($"WebMessage Error: {ex.Message}");
             }
+        }
+
+        private async Task SyncDiscordRpcWithCurrentProgressAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_currentTitle)) return;
+
+            var progress = await GetPlayerProgressAsync();
+            if (progress.HasValue)
+            {
+                _discordRpcManager.UpdatePresence(
+                    _currentTitle,
+                    _currentArtist,
+                    _currentArtworkUrl,
+                    _isYtmPlaying,
+                    progress.Value.current,
+                    progress.Value.total);
+            }
+            else
+            {
+                _discordRpcManager.UpdatePresence(
+                    _currentTitle,
+                    _currentArtist,
+                    _currentArtworkUrl,
+                    _isYtmPlaying);
+            }
+        }
+
+        private async Task<(double current, double total)?> GetPlayerProgressAsync()
+        {
+            try
+            {
+                string result = await SafeExecuteScriptAsync(
+                    "(() => { let p = document.querySelector('#movie_player'); return p ? JSON.stringify({ current: p.getCurrentTime(), duration: p.getDuration() }) : ''; })();");
+                if (string.IsNullOrWhiteSpace(result)) return null;
+
+                using var resultDocument = JsonDocument.Parse(result);
+                if (resultDocument.RootElement.ValueKind != JsonValueKind.String) return null;
+
+                string? payload = resultDocument.RootElement.GetString();
+                if (string.IsNullOrWhiteSpace(payload)) return null;
+
+                using var progressDocument = JsonDocument.Parse(payload);
+                var progress = progressDocument.RootElement;
+                if (progress.TryGetProperty("current", out var currentElement) &&
+                    progress.TryGetProperty("duration", out var durationElement) &&
+                    currentElement.TryGetDouble(out double currentSeconds) &&
+                    durationElement.TryGetDouble(out double totalSeconds))
+                {
+                    return (currentSeconds, totalSeconds);
+                }
+            }
+            catch { }
+            return null;
         }
 
         private async Task UpdateStatusBadgeAsync(string text, string hexColor)
@@ -448,7 +542,9 @@ namespace YtmHybridClient
             {
                 _appSettings = AppSettings.Load();
                 LanguageManager.ChangeLanguage(_appSettings.Language);
-                System.Diagnostics.Debug.WriteLine("[Settings] Ayarlar yüklendi.");
+                _discordRpcManager.SetEnabled(_appSettings.EnableDiscordRpc);
+                if (_appSettings.EnableDiscordRpc)
+                    await SyncDiscordRpcWithCurrentProgressAsync();
             }
         }
 
@@ -472,7 +568,6 @@ namespace YtmHybridClient
         }
 
         private void TogglePlaybackFromTray() => RunOnUi(TogglePlayback);
-
         private void NextTrackFromTray() => RunOnUi(() => SkipTrack(true));
 
         private void ShowSettingsFromTray()
@@ -571,29 +666,9 @@ namespace YtmHybridClient
             _isProgressUpdateInFlight = true;
             try
             {
-                string result = await SafeExecuteScriptAsync(
-                    "(() => { let p = document.querySelector('#movie_player'); return p ? JSON.stringify({ current: p.getCurrentTime(), duration: p.getDuration() }) : ''; })();");
-                if (_miniPlayerWindow == null || string.IsNullOrWhiteSpace(result)) return;
-
-                using var resultDocument = JsonDocument.Parse(result);
-                if (resultDocument.RootElement.ValueKind != JsonValueKind.String) return;
-
-                string? payload = resultDocument.RootElement.GetString();
-                if (string.IsNullOrWhiteSpace(payload)) return;
-
-                using var progressDocument = JsonDocument.Parse(payload);
-                var progress = progressDocument.RootElement;
-                if (!progress.TryGetProperty("current", out var currentElement) ||
-                    !progress.TryGetProperty("duration", out var durationElement) ||
-                    !currentElement.TryGetDouble(out double currentSeconds) ||
-                    !durationElement.TryGetDouble(out double totalSeconds))
-                    return;
-
-                _miniPlayerWindow.UpdateProgress(currentSeconds, totalSeconds);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[MiniPlayer progress] {ex.Message}");
+                var progress = await GetPlayerProgressAsync();
+                if (_miniPlayerWindow != null && progress.HasValue)
+                    _miniPlayerWindow.UpdateProgress(progress.Value.current, progress.Value.total);
             }
             finally
             {
@@ -608,16 +683,14 @@ namespace YtmHybridClient
             Hide();
         }
 
-        public void AllowApplicationExit()
-        {
-            _isExplicitExit = true;
-        }
+        public void AllowApplicationExit() => _isExplicitExit = true;
 
         private void ExitApplication()
         {
             RunOnUi(() =>
             {
                 _isExplicitExit = true;
+                _discordRpcManager.Dispose();
                 _trayManager.Dispose();
                 if (_miniPlayerWindow != null)
                 {
@@ -626,7 +699,7 @@ namespace YtmHybridClient
                     miniPlayer.Closed -= MiniPlayerWindow_Closed;
                     miniPlayer.Close();
                 }
-                System.Windows.Application.Current.Shutdown();
+                Application.Current.Shutdown();
             });
         }
 
@@ -635,10 +708,7 @@ namespace YtmHybridClient
             _ = SafeExecuteScriptAsync("(() => { const button = document.querySelector('ytmusic-player-bar #play-pause-button, #play-pause-button'); if (button) { button.click(); return true; } return false; })();");
         }
 
-        private void SkipTrack(bool next)
-        {
-            _ = ExecuteYtmCommand(next ? "next" : "prev");
-        }
+        private void SkipTrack(bool next) => _ = ExecuteYtmCommand(next ? "next" : "prev");
 
         public async Task ExecuteYtmCommand(string command)
         {
@@ -659,15 +729,8 @@ namespace YtmHybridClient
             }
         }
 
-        private void UpdateMiniPlayerTrack()
-        {
-            _miniPlayerWindow?.UpdateTrack(_currentTitle, _currentArtist, _currentArtworkUrl);
-        }
-
-        private void UpdateMiniPlayerPlaybackState()
-        {
-            _miniPlayerWindow?.UpdatePlaybackState(_isYtmPlaying);
-        }
+        private void UpdateMiniPlayerTrack() => _miniPlayerWindow?.UpdateTrack(_currentTitle, _currentArtist, _currentArtworkUrl);
+        private void UpdateMiniPlayerPlaybackState() => _miniPlayerWindow?.UpdatePlaybackState(_isYtmPlaying);
 
         private void RunOnUi(Action action)
         {
@@ -687,6 +750,7 @@ namespace YtmHybridClient
                 miniPlayer.Closed -= MiniPlayerWindow_Closed;
                 miniPlayer.Close();
             }
+            _discordRpcManager.Dispose();
             _hotkeyManager.Dispose();
             _trayManager.Dispose();
             base.OnClosed(e);

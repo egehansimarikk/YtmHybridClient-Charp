@@ -40,15 +40,40 @@ namespace YtmHybridClient
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Çıkış", null, (_, _) => _exitApplication());
 
-            string iconPath = Path.Combine(AppContext.BaseDirectory, "YtmHybridClientLogo.ico");
             _notifyIcon = new NotifyIcon
             {
-                Icon = File.Exists(iconPath) ? new Icon(iconPath) : SystemIcons.Application,
+                Icon = LoadTrayIcon(),
                 Text = "YTM Hybrid Client",
                 ContextMenuStrip = menu,
                 Visible = true
             };
             _notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
+        }
+
+        private static Icon LoadTrayIcon()
+        {
+            try
+            {
+                string iconPath = Path.Combine(AppContext.BaseDirectory, "ytmhybridlogo.ico");
+                if (File.Exists(iconPath))
+                {
+                    return new Icon(iconPath, new Size(32, 32));
+                }
+
+                string? exePath = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                {
+                    Icon? associatedIcon = Icon.ExtractAssociatedIcon(exePath);
+                    if (associatedIcon != null)
+                        return associatedIcon;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Tray Icon Hatası]: {ex.Message}");
+            }
+
+            return SystemIcons.Application;
         }
 
         private void NotifyIcon_DoubleClick(object? sender, EventArgs e) => _restoreMainWindow();
