@@ -1,6 +1,12 @@
 # YTM Hybrid Client
 
 <p align="center">
+  <img src="ytmhybridlogo.png" alt="YTM Hybrid Client Logo" width="120" height="120">
+</p>
+
+<h1 align="center">YTM Hybrid Client</h1>
+
+<p align="center">
   <strong>A Modern YouTube Music Desktop Experience for Windows</strong>
 </p>
 
@@ -82,10 +88,6 @@ With additional features such as Discord Rich Presence, GitHub Auto-Updater, Min
 
 ## Screenshots
 
-Screenshots will be added here.
-
-<!-- Add screenshots to docs/screenshots/ and uncomment the corresponding images.
-
 ### Main Window
 ![Main Window](docs/screenshots/main-window.png)
 
@@ -97,7 +99,6 @@ Screenshots will be added here.
 
 ### Discord Rich Presence
 ![Discord Rich Presence](docs/screenshots/discord-rich-presence.png)
-
 -->
 
 ## Installation
@@ -281,10 +282,6 @@ Discord Rich Presence, GitHub Auto-Updater, Mini Player ve Sistem Tepsisi entegr
 - Uygulama dili Ayarlar üzerinden değiştirilebilir.
 
 ## Ekran Görüntüleri
-
-Ekran görüntüleri daha sonra eklenecektir.
-
-<!-- Ekran görüntülerini docs/screenshots/ klasörüne ekleyip aşağıdaki görsellerin yorum satırlarını kaldırabilirsiniz.
 
 ### Ana Pencere
 ![Ana Pencere](docs/screenshots/main-window.png)
